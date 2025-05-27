@@ -1,0 +1,375 @@
+/* Общие */
+body {
+    margin: 0;
+    font-family: 'Segoe UI', sans-serif;
+    color: #333;
+}
+
+a {
+    text-decoration: none;
+    color: inherit;
+}
+
+button {
+    font-family: inherit;
+    cursor: pointer;
+    border: none;
+    outline: none;
+}
+
+/* Страница входа */
+body.login-page {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background-size: cover;
+    background-position: center;
+    transition: background-image 1s ease-in-out;
+}
+
+.login-page {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+
+.login-container {
+    position: relative;
+    max-width: 400px;
+    margin: 0 auto;
+    padding-left: 20px;
+    padding-right: 20px;
+    padding-bottom: 20px;
+    background:#e0e0e0;
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    text-align: center;
+}
+
+.login-container h2 {
+    margin-bottom: 20px;
+    color: #444;
+}
+
+.login-container input {
+    display: block;
+    width: 250px;
+    margin: 10px auto;
+    padding: 10px;
+    border: none;
+    border-radius: 8px;
+    background-color: #ddd;
+}
+
+.login-button {
+    display: inline-block;
+    text-align: center;
+    background-color: #555;
+    color: #fff;
+    padding: 10px 20px;
+    text-decoration: none;
+    border-radius: 5px;
+    transition: background-color 0.2s;
+}
+
+.login-button:hover {
+    background-color: #777; /* Светлее при наведении */
+}
+
+.help-button {
+    position: absolute;
+    bottom: 10px; /* Прижата к нижнему краю */
+    right: 10px; /* Прижата к правому краю */
+    background-color: #444;
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    font-size: 1.2rem;
+    cursor: pointer;
+    transition: transform 0.2s, background-color 0.2s;
+}
+
+.help-button:hover {
+    transform: scale(1.2); /* Увеличение кнопки */
+    background-color: #007bff; /* Синий цвет при наведении */
+}
+
+/* Главная страница */
+.home-page {
+    padding: 60px 20px;
+    text-align: center;
+}
+
+.home-container h1 {
+    font-size: 32px;
+    margin-bottom: 10px;
+}
+
+.card-container {
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+    margin-top: 40px;
+    flex-wrap: wrap;
+}
+
+.action-card {
+    display: block;
+    padding: 30px 40px;
+    background-color: #d6dbe1;
+    border-radius: 16px;
+    color: #2c3e50;
+    text-decoration: none;
+    font-size: 18px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+}
+
+.action-card:hover {
+    background-color: #c1c7ce;
+    transform: translateY(-5px);
+}
+
+.main-title {
+    font-size: 3rem; 
+    text-align: center;
+    margin-bottom: 20px;
+    color: #000000;
+}
+
+.input-field {
+    display: block;
+    width: 100%;
+    margin: 10px 0;
+    padding: 10px;
+    background-color: #c2c2c2 !important;
+    color: #474747;
+    border: 1px solid #444;
+    border-radius: 5px;
+}
+
+.input-field::placeholder {
+    color: #aaa; 
+}
+
+.logout-button {
+    background-color: #dc3545;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 8px;
+    transition: background-color 0.2s ease;
+}
+/* Уведомления */
+.notification {
+    display: none;
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    background: #222;
+    color: #fff;
+    padding: 18px 28px;
+    border-radius: 8px;
+    font-size: 1rem;
+    z-index: 2000;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+    opacity: 0.95;
+}
+
+/* --- Стили для home.html --- */
+body.home-page {
+    margin: 0;
+    padding: 0;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    transition: background-image 1s ease-in-out;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 15px 20px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    background: rgba(255, 255, 255, 0.25); /* более прозрачный фон */
+    backdrop-filter: blur(16px); /* сильнее размытие по Гауссу */
+    -webkit-backdrop-filter: blur(16px); /* для Safari */
+}
+
+.user-box {
+    background-color: #ccc;
+    padding: 10px 15px;
+    border-radius: 10px;
+}
+
+.account-btn {
+    display: inline-block;
+    padding: 10px 15px;
+    background-color: #007bff;
+    color: white !important; 
+    border-radius: 8px;
+    text-decoration: none !important;
+    transition: background-color 0.2s ease;
+    font-weight: 500;
+}
+
+.account-btn:hover {
+    background-color: #0056b3;
+}
+
+.content {
+    flex: 1;
+    text-align: center;
+    padding: 20px;
+}
+
+.driver-list {
+    list-style: none;
+    padding: 0;
+    margin: 20px auto;
+    max-width: 400px;
+}
+
+.driver-list li {
+    background-color: white;
+    margin: 10px auto;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.add-btn {
+    font-size: 24px;
+    padding: 10px 20px;
+    margin-top: 20px;
+    border-radius: 50%;
+    background-color: #28a745;
+    color: white;
+    transition: background-color 0.2s ease;
+}
+
+.add-btn:hover {
+    background-color: #218838;
+}
+
+/* --- Стили для модального окна --- */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.modal.hidden {
+    display: none;
+}
+
+.modal-content {
+    background-color: white;
+    padding: 32px 28px;
+    border-radius: 10px;
+    width: 340px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    align-items: stretch; /* элементы растягиваются на всю ширину */
+}
+
+.modal-content h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    text-align: center;
+}
+
+.modal-content input {
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    width: 100%; /* одинаковая ширина */
+    box-sizing: border-box;
+    margin: 0; /* убираем внешние отступы */
+}
+
+.modal-content button {
+    width: 100%; /* одинаковая ширина */
+    padding: 10px;
+    border-radius: 5px;
+    background-color: #007bff;
+    color: white;
+    transition: background-color 0.2s ease;
+    margin: 0; /* убираем внешние отступы */
+    box-sizing: border-box;
+}
+
+.modal-content button#close-modal {
+    background-color: #dc3545;
+}
+
+.modal-content button:hover {
+    background-color: #0056b3;
+}
+
+.modal-content button#close-modal:hover {
+    background-color: #c82333;
+}
+
+/* --- Стили для accounts.html --- */
+body.accounts-page {
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    transition: background-image 1s ease-in-out;
+    display: flex;
+    flex-direction: column;
+}
+
+
+
+
+.driver-footer {
+  margin-top: auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 20px;
+}
+
+.driver-footer .custom-alert {
+  background-color: #fff8dc;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  max-width: 100%;
+}
+
+.driver-footer .custom-alert .alert-title {
+  font-weight: bold;
+  color: #7c6300;
+  margin-bottom: 4px;
+}
+
+.driver-footer .custom-alert .alert-message {
+  color: #333;
+}
+
+.driver-footer .custom-alert .alert-time {
+  font-size: 0.8rem;
+  color: #888;
+}
+

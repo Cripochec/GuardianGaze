@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Управление аккаунтами</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+</head>
+<body class="accounts-page">
+  <div class="top-bar">
+    <div class="user-box">Пользователь: {{ user }}</div>
+    <a href="{{ url_for('main') }}" class="account-btn">Назад</a>
+  </div>
+
+  <div class="content container mt-4">
+    <h1>Управление аккаунтами</h1>
+    <ul class="list-group">
+      {% for admin in admins %}
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+          <div>
+            Логин: {{ admin[1] }},  Пароль: {{ admin[2] }}
+          </div>
+          {% if admin[0] != 1 %}
+            <div>
+              <form method="post" action="{{ url_for('delete_admin', admin_id=admin[0]) }}" style="display:inline;">
+                <button class="btn btn-sm btn-danger" onclick="return confirm('Удалить администратора?');">Удалить</button>
+              </form>
+              <!-- Редактировать можно реализовать модальным окном -->
+              <button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editAdminModal{{ admin[0] }}">Редактировать</button>
+            </div>
+          {% endif %}
+        </li>
+
+        <!-- Модальное окно для редактирования -->
+        <div class="modal fade" id="editAdminModal{{ admin[0] }}" tabindex="-1" aria-labelledby="editAdminModalLabel{{ admin[0] }}" aria-hidden="true">
+          <div class="modal-dialog">
+            <form class="modal-content" method="post" action="{{ url_for('edit_admin', admin_id=admin[0]) }}">
+              <div class="modal-header">
+                <h5 class="modal-title">Редактировать администратора</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+              </div>
+              <div class="modal-body">
+                <div class="mb-3">
+                  <label for="login{{ admin[0] }}" class="form-label">Логин</label>
+                  <input type="text" class="form-control" id="login{{ admin[0] }}" name="login" value="{{ admin[1] }}" required>
+                </div>
+                <div class="mb-3">
+                  <label for="password{{ admin[0] }}" class="form-label">Пароль</label>
+                  <input type="text" class="form-control" id="password{{ admin[0] }}" name="password" value="{{ admin[2] }}" required>
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="submit" class="btn btn-primary">Сохранить</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      {% else %}
+        <li class="list-group-item text-muted">Нет администраторов</li>
+      {% endfor %}
+    </ul>
+
+    <button class="btn btn-primary mt-4" data-bs-toggle="modal" data-bs-target="#addAdminModal">Добавить администратора</button>
+  </div>
+
+  <!-- Модальное окно для добавления -->
+  <div class="modal fade" id="addAdminModal" tabindex="-1" aria-labelledby="addAdminModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <form class="modal-content" method="post" action="{{ url_for('create_admin') }}">
+        <div class="modal-header">
+          <h5 class="modal-title w-100 text-center" id="addAdminModalLabel">Добавить администратора</h5>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="login" class="form-label">Логин</label>
+            <input type="text" class="form-control" id="login" name="login" required>
+          </div>
+          <div class="mb-3">
+            <label for="password" class="form-label">Пароль</label>
+            <input type="password" class="form-control" id="password" name="password" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary mb-2" data-bs-dismiss="modal">Отмена</button>
+          <button type="submit" class="btn btn-primary mb-2">Добавить</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

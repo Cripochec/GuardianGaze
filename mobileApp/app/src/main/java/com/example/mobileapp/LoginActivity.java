@@ -1,13 +1,22 @@
 package com.example.mobileapp;
 
+import static com.example.mobileapp.utils.DataUtils.getEntry;
+import static com.example.mobileapp.utils.DataUtils.isDarkModeEnabled;
+
+import android.annotation.SuppressLint;
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.os.Bundle;
+import android.text.InputType;
 import android.text.TextUtils;
+import android.util.Log;
+import android.view.MotionEvent;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.app.AppCompatDelegate;
 
 import com.example.mobileapp.utils.RequestUtils;
 import com.example.mobileapp.utils.ToastUtils;
@@ -24,10 +33,24 @@ public class LoginActivity extends AppCompatActivity {
     private com.airbnb.lottie.LottieAnimationView lottieAnimation;
 
 
+    @SuppressLint("ClickableViewAccessibility")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        if (isDarkModeEnabled(this)) {
+            AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES);
+        } else {
+            AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO);
+        }
+
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_login);
+
+        if (!getEntry(this)){
+            // Запускаем активити MainActivity.java
+            Intent intent = new Intent(LoginActivity.this, MainActivity.class);
+            startActivity(intent);
+            finish();
+        }
 
         editTextUsername = findViewById(R.id.editTextUsername);
         editTextPassword = findViewById(R.id.editTextPassword);
@@ -39,26 +62,20 @@ public class LoginActivity extends AppCompatActivity {
         buttonLogin.setOnClickListener(v -> {
             try {
                 // Обработка нажатия на кнопку but_login
-                String enteredEmail = editTextUsername.getText().toString(); // Получаем введенный email
+                String enteredLogin = editTextUsername.getText().toString(); // Получаем введенный email
                 String enteredPassword = editTextPassword.getText().toString(); // Получаем введенный пароль
 
-                if (!TextUtils.isEmpty(enteredEmail) && !TextUtils.isEmpty(enteredPassword)){
+                if (!TextUtils.isEmpty(enteredLogin) && !TextUtils.isEmpty(enteredPassword)){
 
                     // Отправляем запрос на сервер для входа
                     JSONObject loginData = new JSONObject();
-                    loginData.put("email", enteredEmail);
+                    loginData.put("login", enteredLogin);
                     loginData.put("password", enteredPassword);
 
                     startLoading();
                     findViewById(R.id.loadingOverlay).setVisibility(View.VISIBLE);
 
-//                    new RequestUtils(this, "entry_person", "POST", loginData.toString(), callbackEntryPerson).execute();
-
-                    // Запускаем активити MainActivity.java
-                    Intent intent = new Intent(LoginActivity.this, MainActivity.class);
-                    startActivity(intent);
-                    finish();
-                    
+                    new RequestUtils(this, "authorize_driver", "POST", loginData.toString(), callbackAuthorizeDriver).execute();
                 } else {
                     // Показываем сообщение об ошибке, если поля пусты
                     showToast("\"Все поля должны быть заполнены\"");
@@ -66,12 +83,39 @@ public class LoginActivity extends AppCompatActivity {
                 }
 
             } catch (Exception e) {
+                runOnUiThread(this::stopLoading);
+                this.runOnUiThread(() -> findViewById(R.id.loadingOverlay).setVisibility(View.GONE));
                 new RequestUtils(this, "log", "POST", "{\"module\": \"LoginActivity\", \"method\": \"buttonLogin.setOnClickListener\", \"error\": \"" + e + "\"}", callbackLog).execute();
             }
         });
 
-        buttonHelp.setOnClickListener(v -> showToast("Если возникли проблемы со входом обратитесь к своему супервайзеру"));
+        buttonHelp.setOnClickListener(v -> {
+            new AlertDialog.Builder(this)
+                    .setTitle("Возникла ошибка?")
+                    .setMessage("Если возникли проблемы со входом обратитесь к своему супервайзеру или напишите на почту danilbiryukov2003@gmail.com")
+                    .setPositiveButton("OK", null)
+                    .show();
+                });
 
+        editTextPassword.setOnTouchListener((v, event) -> {
+            final int DRAWABLE_END = 2; // Индекс иконки справа
+            if (event.getAction() == MotionEvent.ACTION_UP) {
+                if (event.getRawX() >= (editTextPassword.getRight() - editTextPassword.getCompoundDrawables()[DRAWABLE_END].getBounds().width())) {
+                    // Переключение видимости пароля
+                    if (editTextPassword.getInputType() == (InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD)) {
+                        editTextPassword.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD);
+                        editTextPassword.setCompoundDrawablesWithIntrinsicBounds(0, 0, R.drawable.ic_eye_open, 0);
+                    } else {
+                        editTextPassword.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+                        editTextPassword.setCompoundDrawablesWithIntrinsicBounds(0, 0, R.drawable.ic_eye_closed, 0);
+                    }
+                    // Устанавливаем курсор в конец текста
+                    editTextPassword.setSelection(editTextPassword.getText().length());
+                    return true;
+                }
+            }
+            return false;
+        });
     }
 
     // Обработка логирования на сервере
@@ -87,19 +131,19 @@ public class LoginActivity extends AppCompatActivity {
     };
 
     // Обработка ответа от сервера
-    RequestUtils.Callback callbackEntryPerson = (fragment, result) -> {
+    RequestUtils.Callback callbackAuthorizeDriver = (fragment, result) -> {
         try {
+            Log.d("ServerResponse", "Raw result: " + result);
+
             // Получение JSON объекта из ответа сервера
             JSONObject jsonObject = new JSONObject(result);
             int status = jsonObject.getInt("status"); // Получаем статус из ответа
-
             // status
             // 0 - успешно
-            // 1 - email не найден
-            // 2 - неверный логин или пароль
+            // 1 - неверный логин или пароль
             // ~ - ошибка сервера
             if (status == 0){
-                DataUtils.saveUserId(this, jsonObject.getInt("id_person")); // Сохраняем ID пользователя
+                DataUtils.saveUserId(this, jsonObject.getInt("driver_id")); // Сохраняем ID пользователя
                 DataUtils.saveEntry(this, false); // Сохраняем информацию о входе
 
                 // Запускаем активити MainActivity.java

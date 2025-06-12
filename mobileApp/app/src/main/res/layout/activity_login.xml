@@ -17,8 +17,6 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- Полупрозрачный блок входа -->
-
     <LinearLayout
         android:id="@+id/loginPanel"
         android:layout_width="0dp"
@@ -41,7 +39,6 @@
             android:layout_height="wrap_content"
             android:layout_gravity="center_horizontal"
             android:text="Guardian Gaze"
-            android:textColor="#000000"
             android:textSize="24sp"
             android:textStyle="bold" />
 
@@ -51,7 +48,6 @@
             android:layout_gravity="center_horizontal"
             android:layout_marginTop="8dp"
             android:text="Вход"
-            android:textColor="#444"
             android:textSize="16sp" />
 
         <EditText
@@ -62,7 +58,8 @@
             android:background="@drawable/edittext_background"
             android:hint="Логин"
             android:inputType="text"
-            android:padding="12dp" />
+            android:padding="12dp"
+            android:maxLength="10"/>
 
         <EditText
             android:id="@+id/editTextPassword"
@@ -72,17 +69,19 @@
             android:background="@drawable/edittext_background"
             android:hint="Пароль"
             android:inputType="textPassword"
-            android:padding="12dp" />
+            android:padding="12dp"
+            android:drawableEnd="@drawable/ic_eye_closed"
+            android:maxLength="10"/>
+
 
         <Button
             android:id="@+id/buttonLogin"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="20dp"
-            android:backgroundTint="#424242"
-            android:text="Войти"
-            android:textColor="#FFFFFF" />
-
+            android:backgroundTint="@color/custom_yellow"
+            android:text="Войти" />
+<!--        424242-->
         <ImageButton
             android:id="@+id/buttonHelp"
             android:layout_width="40dp"
@@ -99,7 +98,8 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:visibility="gone"
-        android:background="#88000000">
+        android:background="#88000000"
+        android:elevation="10dp">
 
         <com.airbnb.lottie.LottieAnimationView
             android:id="@+id/lottieAnimation"

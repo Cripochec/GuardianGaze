@@ -1,1 +1,3 @@
 SMSRU_API_ID = "D96A33CA-7A11-1EC2-E7AC-E345AFEB0B44"
+EMAILS_SUPPORT = "danilbiryukov2003@gmail.com"
+SMTP_PASSWORD = 'mmzudkqlfejbgsvk'

@@ -21,8 +21,8 @@
     <!-- Кнопка назад -->
     <ImageButton
         android:id="@+id/buttonBac"
-        android:layout_width="40dp"
-        android:layout_height="40dp"
+        android:layout_width="45dp"
+        android:layout_height="45dp"
         android:layout_marginTop="15dp"
         android:layout_marginEnd="15dp"
         android:background="@android:color/transparent"
@@ -30,6 +30,7 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
+    <!-- Панель с кнопками и функциями -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
@@ -42,17 +43,20 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/buttonBac">
 
+        <!-- Вибрация -->
         <Switch
             android:id="@+id/switchVibration"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Вибрация"
             android:background="@drawable/edittext_background"
+            android:text="Вибрация"
             app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHorizontal_bias="0.0"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent" />
+            app:layout_constraintTop_toTopOf="parent"
+            tools:ignore="UseSwitchCompatOrMaterialXml" />
 
-
+        <!-- Мелодия -->
         <androidx.constraintlayout.widget.ConstraintLayout
             android:id="@+id/constraintLayout"
             android:layout_width="0dp"
@@ -68,47 +72,83 @@
                 android:id="@+id/textVolume"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Громкость: 5"
+                android:text="Мелодия :"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toTopOf="parent" />
 
-            <SeekBar
-                android:id="@+id/seekBarVolume"
+            <TextView
+                android:id="@+id/textRingtone"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                app:layout_constraintEnd_toEndOf="@+id/textVolume"
-                app:layout_constraintStart_toStartOf="@+id/textVolume"
+                android:layout_marginTop="5dp"
+                android:background="@drawable/edittext_background"
+                android:text="Выбрать звук"
+                android:textColor="@android:color/holo_blue_dark"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toBottomOf="@+id/textVolume" />
         </androidx.constraintlayout.widget.ConstraintLayout>
 
-        <TextView
-            android:id="@+id/textRingtone"
-            android:layout_width="match_parent"
+        <!-- Громкость -->
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:id="@+id/constraintLayout2"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginTop="15dp"
             android:background="@drawable/edittext_background"
-            android:text="Выбрать звук"
-            android:textColor="@android:color/holo_blue_dark"
             app:layout_constraintEnd_toEndOf="@+id/constraintLayout"
+            app:layout_constraintHorizontal_bias="1.0"
             app:layout_constraintStart_toStartOf="@+id/constraintLayout"
-            app:layout_constraintTop_toBottomOf="@+id/constraintLayout" />
+            app:layout_constraintTop_toBottomOf="@+id/constraintLayout">
 
+            <TextView
+                android:id="@+id/textVolume2"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Громкость:"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+
+            <TextView
+                android:id="@+id/textVolumeLevel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:text="5"
+                app:layout_constraintStart_toEndOf="@+id/textVolume2"
+                app:layout_constraintTop_toTopOf="parent" />
+
+            <SeekBar
+                android:id="@+id/seekBarVolumeLevel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_margin="5dp"
+                android:layout_marginStart="5dp"
+                android:layout_marginEnd="5dp"
+                android:thumb="@drawable/custom_thumb"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@+id/textVolume2" />
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
+
+        <!-- Тема -->
         <Switch
             android:id="@+id/switchDarkMode"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="15dp"
-            android:text="Тёмная тема"
             android:background="@drawable/edittext_background"
-            app:layout_constraintEnd_toEndOf="@+id/textRingtone"
-            app:layout_constraintStart_toStartOf="@+id/textRingtone"
-            app:layout_constraintTop_toBottomOf="@+id/textRingtone"
+            android:text="Тёмная тема"
+            app:layout_constraintEnd_toEndOf="@+id/constraintLayout2"
+            app:layout_constraintStart_toStartOf="@+id/constraintLayout2"
+            app:layout_constraintTop_toBottomOf="@+id/constraintLayout2"
             tools:ignore="UseSwitchCompatOrMaterialXml" />
 
+        <!-- Настройка камеры -->
         <androidx.constraintlayout.widget.ConstraintLayout
-            android:id="@+id/out_panel"
+            android:id="@+id/camera_panel"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginTop="15dp"
@@ -118,18 +158,77 @@
             app:layout_constraintTop_toBottomOf="@+id/switchDarkMode">
 
             <TextView
-                android:id="@+id/textView"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="5dp"
-                android:text="Выйти"
-                android:textColor="@color/black"
+                android:text="Настроить камеру"
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toTopOf="parent" />
 
             <ImageView
-                android:id="@+id/imageView"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:layout_marginEnd="10dp"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toTopOf="parent"
+                tools:srcCompat="@drawable/ic_camera" />
+        </androidx.constraintlayout.widget.ConstraintLayout>
+
+        <!-- Модальное окно поддержки -->
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:id="@+id/support_panel"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="15dp"
+            android:background="@drawable/edittext_background"
+            app:layout_constraintEnd_toEndOf="@+id/camera_panel"
+            app:layout_constraintStart_toStartOf="@+id/camera_panel"
+            app:layout_constraintTop_toBottomOf="@+id/camera_panel">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="5dp"
+                android:text="Поддержка"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+
+            <ImageView
+
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:layout_marginEnd="10dp"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toTopOf="parent"
+                tools:srcCompat="@drawable/ic_support" />
+        </androidx.constraintlayout.widget.ConstraintLayout>
+
+        <!-- Модальное окно выхода -->
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:id="@+id/out_panel"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="15dp"
+            android:background="@drawable/edittext_background"
+            app:layout_constraintEnd_toEndOf="@+id/support_panel"
+            app:layout_constraintStart_toStartOf="@+id/support_panel"
+            app:layout_constraintTop_toBottomOf="@+id/support_panel">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="5dp"
+                android:text="Выйти"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+
+            <ImageView
+
                 android:layout_width="30dp"
                 android:layout_height="30dp"
                 android:layout_marginEnd="10dp"
@@ -138,6 +237,25 @@
                 app:layout_constraintTop_toTopOf="parent"
                 tools:srcCompat="@drawable/ic_out" />
         </androidx.constraintlayout.widget.ConstraintLayout>
+
     </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <FrameLayout
+        android:id="@+id/loadingOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone"
+        android:background="#88000000"
+        android:elevation="10dp">
+
+        <com.airbnb.lottie.LottieAnimationView
+            android:id="@+id/lottieAnimation"
+            android:layout_width="250dp"
+            android:layout_height="250dp"
+            android:layout_gravity="center"
+            app:lottie_autoPlay="false"
+            app:lottie_loop="true"
+            app:lottie_rawRes="@raw/loading_animation" />
+    </FrameLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

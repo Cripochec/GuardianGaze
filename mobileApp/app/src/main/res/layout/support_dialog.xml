@@ -13,29 +13,52 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:paddingBottom="16dp"
-        android:text="Вы действительно хотите выйти?"
+        android:text="Опишите свою проблему"
         android:textSize="18sp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <Button
-        android:id="@+id/btnLogout"
-        android:layout_width="wrap_content"
+    <EditText
+        android:id="@+id/editTextTextMultiLine"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:backgroundTint="@android:color/holo_red_dark"
-        android:text="Выйти"
-        android:textColor="@android:color/white"
-        app:layout_constraintStart_toStartOf="@+id/textTitle"
+        android:ems="10"
+        android:gravity="start|top"
+        android:inputType="textMultiLine"
+        android:maxLength="@integer/material_motion_duration_medium_1"
+        android:background="@drawable/panel_background2"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/textTitle" />
 
-    <Button
-        android:id="@+id/btnCancel"
+    <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:backgroundTint="@android:color/darker_gray"
-        android:text="Отмена"
-        android:textColor="@android:color/black"
-        app:layout_constraintEnd_toEndOf="@+id/textTitle"
-        app:layout_constraintTop_toBottomOf="@+id/textTitle" />
+        android:layout_marginTop="15dp"
+        app:layout_constraintEnd_toEndOf="@+id/editTextTextMultiLine"
+        app:layout_constraintStart_toStartOf="@+id/editTextTextMultiLine"
+        app:layout_constraintTop_toBottomOf="@+id/editTextTextMultiLine">
+
+        <Button
+            android:id="@+id/btnCancel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:backgroundTint="@android:color/darker_gray"
+            android:text="Отмена"
+            android:textColor="@android:color/white"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <Button
+            android:id="@+id/btnSend"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="75dp"
+            android:backgroundTint="@color/custom_yellow"
+            android:text="Отправить"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toEndOf="@+id/btnCancel"
+            app:layout_constraintTop_toTopOf="parent" />
+    </androidx.constraintlayout.widget.ConstraintLayout>
 </androidx.constraintlayout.widget.ConstraintLayout>

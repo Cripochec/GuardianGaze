@@ -1,6 +1,10 @@
 import psycopg2
 from datetime import datetime, timedelta
+
+from flask import jsonify
 from psycopg2 import sql
+from psycopg2.extras import NamedTupleCursor
+
 
 # Безопасное подключение к БД
 def get_connection():
@@ -8,7 +12,8 @@ def get_connection():
         host="2.59.43.200",
         database="default_db",
         user="gen_user",
-        password="D}NoG1rR,q*xe\\"
+        password="D}NoG1rR,q*xe\\",
+        cursor_factory=NamedTupleCursor
     )
 
 # ------------------ СОЗДАНИЕ ТАБЛИЦ ------------------
@@ -85,8 +90,25 @@ def update_admin(admin_id, login, password):
 def delete_admin_by_id(admin_id):
     with get_connection() as conn:
         with conn.cursor() as cur:
+            # Получаем всех водителей, связанных с этим админом
+            cur.execute("SELECT id_driver FROM admin_driver_relation WHERE id_admin = %s", (admin_id,))
+            driver_ids = [row.id_driver for row in cur.fetchall()]
+
+            for driver_id in driver_ids:
+                # Удаляем уведомления водителя
+                cur.execute("DELETE FROM notifications WHERE id_driver = %s", (driver_id,))
+
+                # Удаляем связи водителя с админами
+                cur.execute("DELETE FROM admin_driver_relation WHERE id_driver = %s", (driver_id,))
+
+                # Удаляем водителя
+                cur.execute("DELETE FROM drivers WHERE id = %s", (driver_id,))
+
+            # Удаляем самого админа
             cur.execute("DELETE FROM admins WHERE id = %s", (admin_id,))
-            conn.commit()
+
+        conn.commit()
+
 
 def get_all_admins():
     with get_connection() as conn:
@@ -111,8 +133,16 @@ def add_driver(login, password, first_name=None, last_name=None, phone=None, ema
 def delete_driver_db(driver_id):
     with get_connection() as conn:
         with conn.cursor() as cur:
+            # Удаляем уведомления водителя
+            cur.execute("DELETE FROM notifications WHERE id_driver = %s", (driver_id,))
+
+            # Удаляем связи водителя с админами
+            cur.execute("DELETE FROM admin_driver_relation WHERE id_driver = %s", (driver_id,))
+
+            # Удаляем самого водителя
             cur.execute("DELETE FROM drivers WHERE id = %s", (driver_id,))
-            conn.commit()
+
+        conn.commit()
 
 def update_driver(driver_id, **kwargs):
     if not kwargs:
@@ -136,6 +166,21 @@ def get_drivers_by_admin(admin_id):
                 WHERE adr.id_admin = %s
             """, (admin_id,))
             return cur.fetchall()
+
+
+def check_driver_credentials(login, password):
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT id FROM drivers
+                WHERE login = %s AND password = %s
+            """, (login, password))
+            result = cur.fetchone()
+
+            if result:
+                return {"status": 0, "driver_id": result[0]}
+            else:
+                return {"status": 1}
 
 # ------------------ СВЯЗЬ АДМИН-ВОДИТЕЛЬ ------------------
 
@@ -179,10 +224,6 @@ def update_admin_driver_relation(relation_id, id_admin=None, id_driver=None):
             cur.execute(query, values)
             conn.commit()
 
-
-
-
-
 # ------------------ УВЕДОМЛЕНИЯ ------------------
 
 def get_unread_notifications(driver_id):
@@ -211,6 +252,6 @@ def mark_notifications_as_read(driver_id):
             cur.execute("""
                 UPDATE notifications
                 SET is_read = TRUE
-                WHERE id_driver = %s
+                WHERE id_driver = %s AND is_read = FALSE
             """, (driver_id,))
             conn.commit()

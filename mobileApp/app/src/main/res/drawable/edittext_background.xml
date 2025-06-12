@@ -2,7 +2,7 @@
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
 
-    <solid android:color="#F1F1F1" /> <!-- Светло-серый фон -->
+    <solid android:color="@color/gray3" /> <!-- фон -->
 
     <corners android:radius="12dp" /> <!-- Закруглённые углы -->
 

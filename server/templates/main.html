@@ -13,61 +13,81 @@
       <a href="{{ url_for('logout') }}" class="logout-btn btn btn-outline-danger ms-3">Выйти</a>
     </div>
       {% if admin_id == 1 %}
-        <a href="{{ url_for('accounts') }}" class="account-btn">Управление аккаунтами</a>
+        <a href="{{ url_for('accounts') }}" class="btn btn-secondary">Управление аккаунтами</a>
       {% endif %}
   </div>
 
   <div class="content">
-    <h2>Список водителей</h2>
-    <div class="row mb-3">
-      {% for driver in drivers %}
-        <div class="col-md-4 mb-3">
-          <div class="card h-100">
-            <div class="card-body">
-              <h5 class="card-title">{{ driver.first_name }} {{ driver.last_name }}</h5>
-              <p class="card-text mb-1"><b>Телефон:</b> {{ driver.phone }}</p>
-              <p class="card-text mb-1"><b>Email:</b> {{ driver.email }}</p>
-              <p class="card-text mb-1"><b>Возраст:</b> {{ driver.age }}</p>
-              <p class="card-text mb-1"><b>Грузовик:</b> {{ driver.truck }}</p>
+    <div class="main-wrapper">
+      <h2>Список водителей</h2>
+      <div class="row mb-3">
+        {% for driver in drivers %}
+          <div class="col-md-4 mb-3">
+            <a href="{{ url_for('driver_profile', driver_id=driver.id) }}" class="text-decoration-none text-dark">
+              <div class="card h-100">
+                <div class="card-body">
+                  <h5 class="card-title">{{ driver[3] }} {{ driver[4] }}</h5>
+                  <p><b>Телефон:</b> {{ driver[5] }}</p>
+                  <p><b>Email:</b> {{ driver[6] }}</p>
+                  <p><b>Возраст:</b> {{ driver[7] }}</p>
+                  <p><b>Грузовик:</b> {{ driver[8] }}</p>
 
-              <div class="driver-footer mt-auto d-flex justify-content-between align-items-end gap-3">
-                <!-- Левая кнопка -->
-                <a href="#"
-                   class="btn btn-warning btn-sm"
-                   data-bs-toggle="modal"
-                   data-bs-target="#editDriverModal"
-                   data-driver='{{ driver | tojson | safe }}'>
-                   Редактировать
-                </a>
 
-                <!-- Центр — уведомления -->
-                {% if notifications_map[driver.id] %}
-                  <div class="flex-grow-1 text-center">
-                    {% for note in notifications_map[driver.id] %}
-                      <div class="custom-alert mb-0">
-                        <div class="alert-title">{{ note[2]|capitalize }}:</div>
-                        <div class="alert-message">{{ note[0] }}</div>
-                        <div class="alert-time">{{ note[1].strftime("%d.%m.%Y %H:%M:%S") }}</div>
-                      </div>
-                    {% endfor %}
+
+                  <div class="driver-footer">
+                    <!-- Левая кнопка -->
+                    <a href="#"
+                       class="btn btn-warning btn-sm left-btn"
+                       data-bs-toggle="modal"
+                       data-bs-target="#editDriverModal"
+                       data-id="{{ driver[0] }}"
+                       data-first_name="{{ driver[3] }}"
+                       data-last_name="{{ driver[4] }}"
+                       data-phone="{{ driver[5] }}"
+                       data-email="{{ driver[6] }}"
+                       data-age="{{ driver[7] }}"
+                       data-truck="{{ driver[8] }}">
+                       Редактировать
+                    </a>
+
+                    <!-- Центр — уведомления -->
+                    <div class="notification-box">
+                      {% set notes = notifications_map[driver.id] %}
+                      {% if notes %}
+                        <div class="custom-alert mb-0 position-relative">
+                          <!-- Значок количества -->
+                          <span class="badge bg-danger position-absolute top-0 end-0 translate-middle p-1 rounded-circle"
+                                style="font-size: 0.75rem; transform: translate(50%, -50%) !important;">
+                            {{ notes | length }}
+                          </span>
+
+                          <!-- Только одно уведомление -->
+                          <div class="alert-title">{{ notes[0].importance|capitalize }}:</div>
+                          <div class="alert-message">{{ notes[0].message }}</div>
+                          <div class="alert-time">{{ notes[0].time.strftime("%d.%m.%Y %H:%M:%S") }}</div>
+                        </div>
+                      {% endif %}
+                    </div>
+
+                    <!-- Правая кнопка -->
+                    <form method="post" action="{{ url_for('delete_driver', driver_id=driver[0]) }}" class="right-btn">
+                      <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Удалить водителя?');">Удалить</button>
+                    </form>
                   </div>
-                {% endif %}
 
-                <!-- Правая кнопка -->
-                <form method="post" action="{{ url_for('delete_driver', driver_id=driver[0]) }}">
-                  <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Удалить водителя?');">Удалить</button>
-                </form>
+
+
+                </div>
               </div>
-
-            </div>
+            </a>
           </div>
-        </div>
-      {% else %}
-        <div class="text-center text-muted w-100">Нет водителей</div>
-      {% endfor %}
+        {% else %}
+          <div class="text-center text-muted w-100">Нет водителей</div>
+        {% endfor %}
+      </div>
+      <!-- Кнопка для открытия модального окна -->
+      <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addDriverModal">+</button>
     </div>
-    <!-- Кнопка для открытия модального окна -->
-    <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addDriverModal">+</button>
   </div>
 
   <!-- Модальное окно для добавления водителя -->
@@ -81,7 +101,7 @@
           <div class="mb-3">
             <label for="first_name" class="form-label">Имя</label>
             <input type="text" class="form-control" id="first_name" name="first_name" required>
-          </div> 
+          </div>
           <div class="mb-3">
             <label for="last_name" class="form-label">Фамилия</label>
             <input type="text" class="form-control" id="last_name" name="last_name" required>
@@ -156,23 +176,26 @@
   <script src="{{ url_for('static', filename='script.js') }}"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script>
-  document.addEventListener('DOMContentLoaded', function() {
-    var editModal = document.getElementById('editDriverModal');
-    editModal.addEventListener('show.bs.modal', function (event) {
-      var button = event.relatedTarget;
-      var driver = JSON.parse(button.getAttribute('data-driver'));
-      document.getElementById('edit_driver_id').value = driver.id;
-      document.getElementById('edit_first_name').value = driver.first_name || '';
-      document.getElementById('edit_last_name').value = driver.last_name || '';
-      document.getElementById('edit_phone').value = driver.phone || '';
-      document.getElementById('edit_email').value = driver.email || '';
-      document.getElementById('edit_age').value = driver.age || '';
-      document.getElementById('edit_truck').value = driver.truck || '';
-      // Установить action формы
-      document.getElementById('edit-driver-form').action = '/edit_driver/' + driver.id;
+    document.addEventListener('DOMContentLoaded', function() {
+      var editModal = document.getElementById('editDriverModal');
+      editModal.addEventListener('show.bs.modal', function (event) {
+        var button = event.relatedTarget;
+
+        document.getElementById('edit_driver_id').value = button.dataset.id || '';
+        document.getElementById('edit_first_name').value = button.dataset.first_name || '';
+        document.getElementById('edit_last_name').value = button.dataset.last_name || '';
+        document.getElementById('edit_phone').value = button.dataset.phone || '';
+        document.getElementById('edit_email').value = button.dataset.email || '';
+        document.getElementById('edit_age').value = button.dataset.age || '';
+        document.getElementById('edit_truck').value = button.dataset.truck || '';
+
+        // Устанавливаем action формы
+        document.getElementById('edit-driver-form').action = '/edit_driver/' + button.dataset.id;
+      });
     });
-  });
   </script>
+
+
 
 </body>
 </html>

@@ -17,6 +17,11 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
+
+
+
+
+
     <!-- Кнопка настроек -->
     <ImageButton
         android:id="@+id/buttonSettings"
@@ -48,7 +53,9 @@
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_margin="15dp"
-        app:layout_constraintBottom_toBottomOf="parent"
+        android:visibility="visible"
+        android:background="@drawable/panel_background"
+        app:layout_constraintBottom_toTopOf="@+id/cameraPreviewFrameLayout"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/buttonTracking">
@@ -60,5 +67,53 @@
             android:layout_height="wrap_content"
             android:orientation="vertical" />
     </ScrollView>
+
+    <!-- Превью -->
+    <androidx.cardview.widget.CardView
+        android:id="@+id/cameraPreviewFrameLayout"
+        android:layout_width="250dp"
+        android:layout_height="300dp"
+        android:layout_marginStart="20dp"
+        android:layout_marginEnd="20dp"
+        android:layout_marginBottom="10dp"
+        android:background="@drawable/panel_background_rounded"
+        app:cardCornerRadius="24dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent">
+
+        <TextureView
+            android:id="@+id/textureView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <com.example.mobileapp.utils.OverlayView
+            android:id="@+id/overlayView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@android:color/transparent" />
+    </androidx.cardview.widget.CardView>
+
+    <!-- Анимация REC -->
+    <FrameLayout
+        android:id="@+id/recOverlay"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_marginStart="20dp"
+        android:layout_marginTop="20dp"
+        android:elevation="10dp"
+        android:visibility="gone"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <com.airbnb.lottie.LottieAnimationView
+            android:id="@+id/lottieAnimation"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_gravity="center"
+            app:lottie_autoPlay="false"
+            app:lottie_loop="true"
+            app:lottie_rawRes="@raw/rec_animation" />
+    </FrameLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

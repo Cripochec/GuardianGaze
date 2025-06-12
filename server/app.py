@@ -2,12 +2,17 @@ from flask import Flask, request, jsonify, Response, session, render_template, r
 from flask_cors import CORS, cross_origin
 from db import *
 from modules import generate_credentials
+from flask_socketio import SocketIO, emit
+from settings import EMAILS_SUPPORT
+from smtp import password_generation, send_email
+import threading
 
 app = Flask(__name__)
 CORS(app, supports_credentials=True, resources={r"/*": {"origins": "*"}})
 app.secret_key = 'supersecret'
 
 
+# WebSite
 @app.route("/")
 def index():
     if not session.get("user"):
@@ -17,6 +22,7 @@ def index():
 @app.route('/favicon.ico')
 def favicon():
     return redirect(url_for('static', filename='images/lock.ico'))
+
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -35,19 +41,33 @@ def login():
         error = "Неверный логин или пароль"
     return render_template("login.html", error=error)
 
-@app.route("/logout")
-def logout():
-    session.clear()
-    return redirect(url_for("login"))
-
 
 @app.route('/main')
 def main():
     if 'user' not in session:
         return redirect('/login')
+
     admin_id = session.get("admin_id")
     drivers = get_drivers_by_admin(admin_id)
-    return render_template("main.html", user=session.get("user"), admin_id=admin_id, drivers=drivers)
+
+    notifications_map = {
+        driver.id: get_unread_notifications(driver.id)
+        for driver in drivers
+    }
+
+    # Сортируем: сначала те, у кого есть уведомления
+    sorted_drivers = sorted(
+        drivers,
+        key=lambda d: len(notifications_map.get(d.id, [])) == 0
+    )
+
+    return render_template(
+        "main.html",
+        user=session.get("user"),
+        admin_id=admin_id,
+        drivers=sorted_drivers,
+        notifications_map=notifications_map
+    )
 
 
 @app.route('/accounts')
@@ -57,6 +77,51 @@ def accounts():
     admins = get_all_admins()
     return render_template("accounts.html", user=session.get("user"), admins=admins)
 
+
+@app.route('/driver/<int:driver_id>')
+def driver_profile(driver_id):
+    if 'user' not in session:
+        return redirect('/login')
+
+    # Получаем данные водителя
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM drivers WHERE id = %s", (driver_id,))
+            driver = cur.fetchone()
+
+    if not driver:
+        return "Водитель не найден", 404
+
+    # Получаем все уведомления
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT message, time, importance, is_read
+                FROM notifications
+                WHERE id_driver = %s
+                ORDER BY time DESC
+            """, (driver_id,))
+            notifications = cur.fetchall()
+
+    # Помечаем непрочитанные как прочитанные
+    mark_notifications_as_read(driver_id)
+
+    return render_template(
+        "driver_profile.html",
+        driver=driver,
+        notifications=notifications
+    )
+
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
+
+@app.route('/mark_read/<int:driver_id>', methods=['POST'])
+def mark_read(driver_id):
+    mark_notifications_as_read(driver_id)
+    return ('', 204)
 
 @app.route('/admins', methods=['POST'])
 def create_admin():
@@ -104,6 +169,9 @@ def add_drivers():
 
     # send_sms_ru(phone, login, password)
 
+    email_thread = threading.Thread(target=send_email, args=(email, "Guardian Gaze, Данные для входа", f"логин: {str(login)}\nпароль: {password}"))
+    email_thread.start()
+
     return redirect(url_for("main"))
 
 @app.route('/edit_driver/<int:driver_id>', methods=['POST'])
@@ -130,9 +198,37 @@ def delete_driver(driver_id):
     return redirect(url_for('main'))
 
 
-# edit_driver
-# delete_driver
+# PhoneApplication
+@app.route('/authorize_driver', methods=['POST'])
+def authorize_driver():
+    try:
+        data = request.get_json()
+        login = data['login']
+        password = data['password']
+        info = check_driver_credentials(login, password)
+        if info['status'] == 0:
+            return jsonify({"status": 0, "driver_id": info['driver_id']})
+        else:
+            return jsonify({"status": 1})
+    except Exception as e:
+        print(f"ERROR: {e}")
+        return jsonify({"status": 2})
 
+@app.route('/support_message', methods=['POST'])
+def support_message():
+    try:
+        data = request.get_json()
+        text = data['text']
+        driver_id = data['driver_id']
+
+        email_thread = threading.Thread(target=send_email, args=(
+            EMAILS_SUPPORT, "Сообщение поддержки Guardian Gaze", f"ID водителя: {driver_id}\nСообщение: {text}"))
+        email_thread.start()
+
+        return jsonify({"status": 0})
+    except Exception as e:
+        print(f"ERROR: {e}")
+        return jsonify({"status": 1})
 
 if __name__ == '__main__':
     # create_database()
@@ -140,7 +236,7 @@ if __name__ == '__main__':
 
 
 
-    # test_driver_id = 5  # замените на реальный ID водителя в вашей БД
+    # test_driver_id = 10  # замените на реальный ID водителя в вашей БД
     # test_message = "Водитель проявляет признаки усталостиs"
     # test_importance = "высокая"
     #
@@ -151,6 +247,7 @@ if __name__ == '__main__':
     #     print("❌ Ошибка при добавлении уведомления:", e)
 
 
-    app.run(debug=True)
+
+    app.run(host='0.0.0.0', port=8000, debug=True)
 
 

@@ -6,7 +6,7 @@ import android.net.Uri;
 
 public class DataUtils {
 
-    public static final String IP = "http://192.168.43.199:8000/";
+    public static final String IP = "http://192.168.0.54:8000/";
 
     private static final String SHARED_PREF_NAME = "Prefs";
     private static final String KEY_ID = "userId";
@@ -16,6 +16,11 @@ public class DataUtils {
     private static final String VOLUME = "volume_level";
     private static final String RINGTONE_URI = "ringtone_uri";
     private static final String DARK_MODE = "dark_mode";
+    private static final String CAMERA_SIDE = "camera_side";
+    private static final String EYE_SLICE = "eye_slice";
+    private static final String CAMERA_IP = "camera_ip";
+    private static final String EYE_OPEN_CALIB = "eye_open_calib";
+    private static final String EYE_CLOSED_CALIB = "eye_closed_calib";
 
     // --- Очистка всех данных
     public static void clearAllData(Context context) {
@@ -88,5 +93,35 @@ public class DataUtils {
 
     private static SharedPreferences.Editor getEditor(Context context) {
         return getPrefs(context).edit();
+    }
+
+    // Камера слева или справа
+    public static void saveCameraSide(Context context, String side) {
+        getEditor(context).putString(CAMERA_SIDE, side).apply();
+    }
+    public static String getCameraSide(Context context) {
+        return getPrefs(context).getString(CAMERA_SIDE, "right"); // по умолчанию слева
+    }
+
+    // IP-камера
+    public static void saveCameraIp(Context context, String ip) {
+        getEditor(context).putString(CAMERA_IP, ip).apply();
+    }
+    public static String getCameraIp(Context context) {
+        return getPrefs(context).getString(CAMERA_IP, ""); // по умолчанию пусто
+    }
+
+    // Калибровка глаз
+    public static void saveCalibratedOpen(Context context, float value) {
+        getEditor(context).putFloat(EYE_OPEN_CALIB, value).apply();
+    }
+    public static float getCalibratedOpen(Context context) {
+        return getPrefs(context).getFloat(EYE_OPEN_CALIB, 0.8f);
+    }
+    public static void saveCalibratedClosed(Context context, float value) {
+        getEditor(context).putFloat(EYE_CLOSED_CALIB, value).apply();
+    }
+    public static float getCalibratedClosed(Context context) {
+        return getPrefs(context).getFloat(EYE_CLOSED_CALIB, 0.2f);
     }
 }

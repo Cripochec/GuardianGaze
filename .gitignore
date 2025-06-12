@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyc
+venv/
+
+# Android
+/build/
+/.gradle/
+/local.properties
+*.apk
+*.aab
+
+# Ваши специфичные правила
+/server/settings.py
+/document/

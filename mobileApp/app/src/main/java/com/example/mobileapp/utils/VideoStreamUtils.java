@@ -1,21 +1,16 @@
 package com.example.mobileapp.utils;
 
+import static com.example.mobileapp.utils.DataUtils.getUserId;
+
+import android.content.Context;
 import android.util.Log;
 import okio.ByteString;
 import okhttp3.*;
 
+//VideoStreamUtils – класс для открытия WebSocket-соединения и отправки JPEG-кадров.
 import java.util.concurrent.TimeUnit;
 
-/**
- * VideoStreamUtils – класс для открытия WebSocket-соединения и отправки JPEG-кадров.
- *
- * Пример использования:
- *   VideoStreamUtils stream = new VideoStreamUtils("ws://<SERVER_IP>:<PORT>/socket.io/?EIO=4&transport=websocket");
- *   stream.connect();
- *   stream.sendFrame(jpegBytes);
- *   ...
- *   stream.disconnect();
- */
+
 public class VideoStreamUtils {
     private static final String TAG = "VideoStreamUtils";
 
@@ -23,6 +18,7 @@ public class VideoStreamUtils {
     private OkHttpClient client;
     private WebSocket webSocket;
     private boolean isConnected = false;
+    private final Context context;
 
     public interface Listener {
         void onConnected();
@@ -33,17 +29,16 @@ public class VideoStreamUtils {
     private final Listener listener;
 
     // В конструкторе передаётся URL WebSocket (socket.io) и колбэк
-    public VideoStreamUtils(String socketUrl, Listener listener) {
+    public VideoStreamUtils(Context context, String socketUrl, Listener listener) {
+        this.context = context;
         this.socketUrl = socketUrl;
         this.listener = listener;
         this.client = new OkHttpClient.Builder()
-                .readTimeout(0, TimeUnit.MILLISECONDS) // чтобы WebSocket не рвался
+                .readTimeout(0, TimeUnit.MILLISECONDS)
                 .build();
     }
 
-    /**
-     * Запускает WebSocket-соединение.
-     */
+    // Запускает WebSocket-соединение.
     public void connect() {
         Request request = new Request.Builder()
                 .url(socketUrl)
@@ -52,26 +47,29 @@ public class VideoStreamUtils {
         // client.dispatcher().executorService() будет поддерживать цикл событий
     }
 
-    /**
-     * Отправка кадра (JPEG-байты) через WebSocket
-     * Если не подключено, просто игнорирует.
-     */
+    // Отправка кадра (JPEG-байты) через WebSocket. Если не подключено, просто игнорирует.
     public void sendFrame(byte[] jpegBytes) {
         if (!isConnected || webSocket == null) return;
         // Socket.IO имеет собственный «заголовок» frames, но здесь мы просто шлём «чистые» байты.
         // На Flask-SocketIO можно принять бинарные данные напрямую.
+        int driver_id = getUserId(context);
+        webSocket.send("driver_id:" + driver_id);
         webSocket.send(ByteString.of(jpegBytes));
     }
 
-    /**
-     * Закрывает WebSocket
-     */
+    // Закрывает WebSocket
     public void disconnect() {
         if (webSocket != null) {
             webSocket.close(1000, "Client disconnect");
             webSocket = null;
         }
     }
+
+    // Геттер подключения
+    public boolean isConnected() {
+        return isConnected;
+    }
+
 
     private class SocketListener extends WebSocketListener {
         @Override

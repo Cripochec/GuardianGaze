@@ -6,11 +6,16 @@
         android:name="android.hardware.camera"
         android:required="false" />
 
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.CAMERA"/>
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA"/>
+
+
 
 
     <application
@@ -25,20 +30,6 @@
         android:networkSecurityConfig="@xml/network_security_config"
         tools:targetApi="31">
 
-<!--        &lt;!&ndash; Стартовая активити &ndash;&gt;-->
-<!--        <activity-->
-<!--            android:name=".LoginActivity"-->
-<!--            android:exported="true">-->
-<!--            <intent-filter>-->
-<!--                <action android:name="android.intent.action.MAIN" />-->
-<!--                <category android:name="android.intent.category.LAUNCHER" />-->
-<!--            </intent-filter>-->
-<!--        </activity>-->
-
-<!--        &lt;!&ndash; Вторая активити &ndash;&gt;-->
-<!--        <activity android:name=".MainActivity"-->
-<!--            android:exported="false" />-->
-
         <!-- Стартовая активити -->
         <activity
             android:name=".LoginActivity"
@@ -51,7 +42,8 @@
 
         <!-- Вторая активити -->
         <activity android:name=".MainActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:launchMode="singleTop"/>
 
         <!-- Третья активити -->
         <activity android:name=".SettingsActivity"
@@ -60,6 +52,15 @@
         <!-- Четвертая активити -->
         <activity android:name=".EyeSettingsActivity"
             android:exported="false"/>
+
+        <receiver android:name=".utils.NotificationActionReceiver"
+            android:exported="true"/>
+
+        <service
+            android:name=".services.FatigueDetectionService"
+            android:foregroundServiceType="camera"
+            android:enabled="true"
+            android:exported="false" />
 
     </application>
 

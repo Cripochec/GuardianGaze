@@ -1,6 +1,7 @@
 package com.example.mobileapp.utils;
 
 import android.app.Activity;
+import android.content.Context;
 
 import java.io.File;
 import java.io.IOException;
@@ -17,7 +18,7 @@ import okhttp3.Response;
 
 public class RequestUtils {
     private final OkHttpClient client = new OkHttpClient();
-    private final WeakReference<Activity> activityRef;
+    private final WeakReference<Context> contextRef;
     private final String requestLine;
     private final String method;
     private final String data;
@@ -25,8 +26,8 @@ public class RequestUtils {
     private final Callback callback;
 
     // Конструктор для обычных запросов (без файлов)
-    public RequestUtils(Activity activity, String requestLine, String method, String data, Callback callback) {
-        this.activityRef = new WeakReference<>(activity);
+    public RequestUtils(Context context, String requestLine, String method, String data, Callback callback) {
+        this.contextRef = new WeakReference<>(context);
         this.requestLine = requestLine;
         this.method = method;
         this.data = data;
@@ -35,8 +36,8 @@ public class RequestUtils {
     }
 
     // Конструктор для запросов с файлами
-    public RequestUtils(Activity activity, String requestLine, String method, String data, List<File> files, Callback callback) {
-        this.activityRef = new WeakReference<>(activity);
+    public RequestUtils(Context context, String requestLine, String method, String data, List<File> files, Callback callback) {
+        this.contextRef = new WeakReference<>(context);
         this.requestLine = requestLine;
         this.method = method;
         this.data = data;
@@ -45,7 +46,7 @@ public class RequestUtils {
     }
 
     public void execute() {
-        String URL_SERVER = DataUtils.IP + requestLine;
+        String URL_SERVER = "http://" + DataUtils.IP + "/" + requestLine;
 
         Request.Builder requestBuilder = new Request.Builder().url(URL_SERVER);
 
@@ -91,13 +92,18 @@ public class RequestUtils {
     }
 
     private void handleResponse(String result) {
-        Activity activity = activityRef.get();
-        if (activity != null) {
-            activity.runOnUiThread(() -> callback.onResponse(activity, result));
+        Context context = contextRef.get();
+        if (context != null && callback != null) {
+            if (context instanceof Activity) {
+                ((Activity) context).runOnUiThread(() -> callback.onResponse(context, result));
+            } else {
+                // Если это не Activity (например, Service), вызываем callback напрямую
+                callback.onResponse(context, result);
+            }
         }
     }
 
     public interface Callback {
-        void onResponse(Activity activity, String result);
+        void onResponse(Context context, String result);
     }
 }

@@ -5,14 +5,16 @@ from flask import jsonify
 from psycopg2 import sql
 from psycopg2.extras import NamedTupleCursor
 
+from settings import DB_HOST, DB_DATABASE, DB_USER, DB_PASSWORD
+
 
 # Безопасное подключение к БД
 def get_connection():
     return psycopg2.connect(
-        host="2.59.43.200",
-        database="default_db",
-        user="gen_user",
-        password="D}NoG1rR,q*xe\\",
+        host=DB_HOST,
+        database=DB_DATABASE,
+        user=DB_USER,
+        password=DB_PASSWORD,
         cursor_factory=NamedTupleCursor
     )
 
@@ -245,6 +247,8 @@ def add_notification(message, importance, driver_id):
                 VALUES (%s, %s, %s)
             """, (message, importance, driver_id))
             conn.commit()
+            return True
+
 
 def mark_notifications_as_read(driver_id):
     with get_connection() as conn:

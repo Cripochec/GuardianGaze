@@ -2,6 +2,7 @@ package com.example.mobileapp;
 
 import static com.example.mobileapp.utils.DataUtils.*;
 
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.media.RingtoneManager;
 import android.net.Uri;
@@ -53,6 +54,7 @@ public class SettingsActivity extends AppCompatActivity {
         ConstraintLayout outPanel = findViewById(R.id.out_panel);
         ConstraintLayout supportPanel = findViewById(R.id.support_panel);
         ConstraintLayout cameraPanel = findViewById(R.id.camera_panel);
+        ConstraintLayout mlPanel = findViewById(R.id.ml_panel);
         SeekBar seekBarVolumeLevel = findViewById(R.id.seekBarVolumeLevel);
         TextView textVolumeLevel = findViewById(R.id.textVolumeLevel);
 
@@ -61,6 +63,8 @@ public class SettingsActivity extends AppCompatActivity {
         supportPanel.setOnClickListener(v -> showSupportDialog());
 
         outPanel.setOnClickListener(v -> showLogoutDialog());
+
+        mlPanel.setOnClickListener(v -> showMlDialog());
 
         cameraPanel.setOnClickListener(v -> {
             Intent intent = new Intent(SettingsActivity.this, EyeSettingsActivity.class);
@@ -100,6 +104,7 @@ public class SettingsActivity extends AppCompatActivity {
             }
             @Override public void onStartTrackingTouch(SeekBar seekBar) {}
             @Override public void onStopTrackingTouch(SeekBar seekBar) {
+                ToastUtils.showLongToast(SettingsActivity.this,"советуем установить 10");
                 saveVolumeLevel(SettingsActivity.this, seekBarVolumeLevel.getProgress());
             }
         });
@@ -202,6 +207,32 @@ public class SettingsActivity extends AppCompatActivity {
         });
 
         btnCancel.setOnClickListener(v -> dialog.dismiss());
+
+        dialog.show();
+    }
+
+    private void showMlDialog() {
+        View dialogView = LayoutInflater.from(this).inflate(R.layout.ml_dialog, null);
+        final BottomSheetDialog dialog = new BottomSheetDialog(this);
+        dialog.setContentView(dialogView);
+
+        ImageButton buttonHelp = dialogView.findViewById(R.id.buttonHelp);
+        Switch switchDetectionBlinking = dialogView.findViewById(R.id.switchDetectionBlinking);
+
+        switchDetectionBlinking.setChecked(getDetectionBlinking(this));
+        switchDetectionBlinking.setOnCheckedChangeListener((buttonView, isChecked) ->
+                saveDetectionBlinking(this, isChecked)
+        );
+
+        buttonHelp.setOnClickListener(v -> {
+            new AlertDialog.Builder(this)
+                    .setTitle("Что такое функции достува нейронных сетей.")
+                    .setMessage("Включая функцию, вы разрешаете нейронной сети запускаться и работать на вашем телефоне " +
+                            "вне зависимости от доступа в интернет. Если функция отключена то нейронные сети включаются на " +
+                            "телефоне тоько тогда, когда у вас пропадает связь с интернетом или связь очень плохого качества")
+                    .setPositiveButton("OK", null)
+                    .show();
+        });
 
         dialog.show();
     }

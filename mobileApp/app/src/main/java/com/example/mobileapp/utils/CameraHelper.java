@@ -17,7 +17,12 @@ import android.view.Surface;
 import android.view.TextureView;
 
 import androidx.annotation.NonNull;
+import androidx.camera.core.CameraSelector;
+import androidx.camera.core.Preview;
+import androidx.camera.lifecycle.ProcessCameraProvider;
 import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+import androidx.lifecycle.LifecycleOwner;
 
 import java.util.Collections;
 
@@ -34,7 +39,9 @@ public class CameraHelper {
     private final FaceDetectionProcessor faceProcessor;
 
     private long lastDetectionTime = 0;
-    private static final long DETECTION_INTERVAL_MS = 200; // раз в 300 мс
+    private static final long DETECTION_INTERVAL_MS = 200; // раз в 200 мс
+    private boolean isCameraStarted = false;
+
 
     public CameraHelper(Context context, TextureView textureView, OverlayView overlayView) {
         this.context = context;
@@ -78,33 +85,43 @@ public class CameraHelper {
     }
 
     public void startCamera() {
+        if (isCameraStarted) return;
+
+        if (ActivityCompat.checkSelfPermission(context, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            Log.e("CameraHelper", "CAMERA permission not granted");
+            return;
+        }
+
         CameraManager manager = (CameraManager) context.getSystemService(Context.CAMERA_SERVICE);
         try {
-            String cameraId = manager.getCameraIdList()[1]; // [1] — фронтальная, [0] — тыловая
-            if (ActivityCompat.checkSelfPermission(context, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-                return;
-            }
+            String cameraId = manager.getCameraIdList()[1]; // Фронтальная — [1] если [0] это тыловая, проверь
             manager.openCamera(cameraId, new CameraDevice.StateCallback() {
                 @Override
                 public void onOpened(@NonNull CameraDevice camera) {
                     cameraDevice = camera;
                     createCameraPreviewSession();
+                    isCameraStarted = true;
                 }
 
                 @Override
                 public void onDisconnected(@NonNull CameraDevice camera) {
                     camera.close();
+                    cameraDevice = null;
                 }
 
                 @Override
                 public void onError(@NonNull CameraDevice camera, int error) {
                     camera.close();
+                    cameraDevice = null;
+                    Log.e("CameraHelper", "Camera error: " + error);
                 }
             }, backgroundHandler);
-        } catch (Exception e) {
-            Log.e("CameraHelper", "startCamera error: ", e);
+        } catch (CameraAccessException e) {
+            Log.e("CameraHelper", "CameraAccessException", e);
         }
     }
+
+
 
     private void createCameraPreviewSession() {
         try {
@@ -145,14 +162,15 @@ public class CameraHelper {
     }
 
     public void stopCamera() {
-        if (captureSession != null) {
-            captureSession.close();
-            captureSession = null;
-        }
-        if (cameraDevice != null) {
-            cameraDevice.close();
-            cameraDevice = null;
-        }
-        backgroundThread.quitSafely();
+        ProcessCameraProvider.getInstance(context).addListener(() -> {
+            try {
+                ProcessCameraProvider cameraProvider = ProcessCameraProvider.getInstance(context).get();
+                cameraProvider.unbindAll();
+                isCameraStarted = false;
+            } catch (Exception e) {
+                Log.e("CameraHelper", "Ошибка остановки камеры", e);
+            }
+        }, ContextCompat.getMainExecutor(context));
     }
+
 }

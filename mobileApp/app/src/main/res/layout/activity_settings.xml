@@ -23,7 +23,7 @@
         android:id="@+id/buttonBac"
         android:layout_width="45dp"
         android:layout_height="45dp"
-        android:layout_marginTop="15dp"
+        android:layout_marginTop="40dp"
         android:layout_marginEnd="15dp"
         android:background="@android:color/transparent"
         android:src="@drawable/ic_back"
@@ -173,7 +173,37 @@
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintTop_toTopOf="parent"
-                tools:srcCompat="@drawable/ic_camera" />
+                android:src="@drawable/ic_camera" />
+        </androidx.constraintlayout.widget.ConstraintLayout>
+
+        <!-- Настройка ML -->
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:id="@+id/ml_panel"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="15dp"
+            android:background="@drawable/edittext_background"
+            app:layout_constraintEnd_toEndOf="@+id/camera_panel"
+            app:layout_constraintStart_toStartOf="@+id/camera_panel"
+            app:layout_constraintTop_toBottomOf="@+id/camera_panel">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="5dp"
+                android:text="Настроить нейронные сети"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+
+            <ImageView
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:layout_marginEnd="10dp"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toTopOf="parent"
+                android:src="@drawable/ic_ml" />
         </androidx.constraintlayout.widget.ConstraintLayout>
 
         <!-- Модальное окно поддержки -->
@@ -183,9 +213,9 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="15dp"
             android:background="@drawable/edittext_background"
-            app:layout_constraintEnd_toEndOf="@+id/camera_panel"
-            app:layout_constraintStart_toStartOf="@+id/camera_panel"
-            app:layout_constraintTop_toBottomOf="@+id/camera_panel">
+            app:layout_constraintEnd_toEndOf="@+id/ml_panel"
+            app:layout_constraintStart_toStartOf="@+id/ml_panel"
+            app:layout_constraintTop_toBottomOf="@+id/ml_panel">
 
             <TextView
                 android:layout_width="wrap_content"
@@ -204,7 +234,7 @@
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintTop_toTopOf="parent"
-                tools:srcCompat="@drawable/ic_support" />
+                android:src="@drawable/ic_support" />
         </androidx.constraintlayout.widget.ConstraintLayout>
 
         <!-- Модальное окно выхода -->
@@ -235,7 +265,7 @@
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintTop_toTopOf="parent"
-                tools:srcCompat="@drawable/ic_out" />
+                android:src="@drawable/ic_out" />
         </androidx.constraintlayout.widget.ConstraintLayout>
 
     </androidx.constraintlayout.widget.ConstraintLayout>

@@ -118,6 +118,24 @@ public class LoginActivity extends AppCompatActivity {
         });
     }
 
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        Log.d("LoginActivity", "Activity destroyed");
+
+        // Остановка анимации Lottie
+        if (lottieAnimation != null) {
+            lottieAnimation.cancelAnimation();
+            lottieAnimation = null;
+        }
+
+        // Очистка ссылок на view элементы
+        editTextUsername = null;
+        editTextPassword = null;
+        buttonLogin = null;
+        buttonHelp = null;
+    }
+
     // Обработка логирования на сервере
     RequestUtils.Callback callbackLog = (fragment, result) -> {
         try {

@@ -27,7 +27,7 @@
         android:id="@+id/buttonSettings"
         android:layout_width="60dp"
         android:layout_height="60dp"
-        android:layout_marginTop="5dp"
+        android:layout_marginTop="40dp"
         android:layout_marginEnd="5dp"
         android:background="@android:color/transparent"
         android:src="@drawable/ic_settings"
@@ -39,27 +39,42 @@
         android:id="@+id/buttonTracking"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="60dp"
+        android:layout_marginTop="30dp"
         android:backgroundTint="@android:color/holo_green_dark"
         android:text="Начать отслеживание"
         android:textColor="@android:color/white"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toTopOf="@+id/buttonSettings" />
+
+
+
+
+
+    <!-- Кнопка для управления CardView -->
+    <ImageButton
+        android:id="@+id/toggleCardButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="@android:color/transparent"
+        android:src="@drawable/ic_arrow_up"
+        app:layout_constraintBottom_toTopOf="@+id/cameraPreviewFrameLayout"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"/>
 
     <!-- Список уведомлений -->
     <ScrollView
         android:id="@+id/notificationScroll"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_margin="15dp"
-        android:visibility="visible"
+        android:layout_marginStart="15dp"
+        android:layout_marginTop="15dp"
+        android:layout_marginEnd="15dp"
         android:background="@drawable/panel_background"
-        app:layout_constraintBottom_toTopOf="@+id/cameraPreviewFrameLayout"
+        app:layout_constraintBottom_toTopOf="@+id/toggleCardButton"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/buttonTracking">
-
 
         <LinearLayout
             android:id="@+id/notificationContainer"
@@ -68,15 +83,16 @@
             android:orientation="vertical" />
     </ScrollView>
 
-    <!-- Превью -->
+    <!-- Превью с анимацией -->
     <androidx.cardview.widget.CardView
         android:id="@+id/cameraPreviewFrameLayout"
-        android:layout_width="250dp"
-        android:layout_height="300dp"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
         android:layout_marginStart="20dp"
         android:layout_marginEnd="20dp"
         android:layout_marginBottom="10dp"
         android:background="@drawable/panel_background_rounded"
+        android:visibility="gone"
         app:cardCornerRadius="24dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
@@ -100,7 +116,7 @@
         android:layout_width="40dp"
         android:layout_height="40dp"
         android:layout_marginStart="20dp"
-        android:layout_marginTop="20dp"
+        android:layout_marginTop="40dp"
         android:elevation="10dp"
         android:visibility="gone"
         app:layout_constraintStart_toStartOf="parent"

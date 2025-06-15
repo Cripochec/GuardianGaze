@@ -6,7 +6,14 @@ import android.net.Uri;
 
 public class DataUtils {
 
-    public static final String IP = "http://192.168.0.54:8000/";
+    // --- IP сервера
+    public static final String IP = "192.168.0.54:8000";
+
+    // --- Усталость
+    public static final long FATIGUE_BLINK_DURATION_MS = 2000;
+    public static final float FATIGUE_HEAD_TILT_DEGREES = 40f;
+    public static final long FATIGUE_HEAD_TILT_DURATION_MS = 3000;
+
 
     private static final String SHARED_PREF_NAME = "Prefs";
     private static final String KEY_ID = "userId";
@@ -17,10 +24,11 @@ public class DataUtils {
     private static final String RINGTONE_URI = "ringtone_uri";
     private static final String DARK_MODE = "dark_mode";
     private static final String CAMERA_SIDE = "camera_side";
-    private static final String EYE_SLICE = "eye_slice";
     private static final String CAMERA_IP = "camera_ip";
     private static final String EYE_OPEN_CALIB = "eye_open_calib";
     private static final String EYE_CLOSED_CALIB = "eye_closed_calib";
+    private static final String ML_DETECTION_BLINKING = "ml_detection_blinking";
+
 
     // --- Очистка всех данных
     public static void clearAllData(Context context) {
@@ -123,5 +131,15 @@ public class DataUtils {
     }
     public static float getCalibratedClosed(Context context) {
         return getPrefs(context).getFloat(EYE_CLOSED_CALIB, 0.2f);
+    }
+
+
+    // --- Нейронные сети
+    public static void saveDetectionBlinking(Context context, boolean status) {
+        getEditor(context).putBoolean(ML_DETECTION_BLINKING, status).apply();
+    }
+
+    public static boolean getDetectionBlinking(Context context) {
+        return getPrefs(context).getBoolean(ML_DETECTION_BLINKING, false);
     }
 }

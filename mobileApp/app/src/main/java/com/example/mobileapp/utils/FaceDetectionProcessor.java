@@ -47,14 +47,7 @@ public class FaceDetectionProcessor {
     }
 
     public void detect(Bitmap bmp, Callback cb) {
-        Log.d("FaceDetection", "detect() called");
-        if (bmp == null) {
-            Log.e("FaceDetection", "Bitmap is null");
-            return;
-        }
-
-        Log.d("FaceDetection", "Start detection on bitmap: " + bmp.getWidth() + "x" + bmp.getHeight());
-
+        if (bmp == null) return;
         InputImage img = InputImage.fromBitmap(bmp, 0);
         detector.process(img)
                 .addOnSuccessListener(faces -> {
@@ -64,7 +57,7 @@ public class FaceDetectionProcessor {
 
                     float openCalibrated = DataUtils.getCalibratedOpen(context);
                     float closedCalibrated = DataUtils.getCalibratedClosed(context);
-                    float seekValue = DataUtils.getCalibratedClosed(context) / 100f;
+                    float seekValue = DataUtils.getCalibratedClosed(context); // от 0.0 до 1.0
                     float threshold = closedCalibrated + (openCalibrated - closedCalibrated) * seekValue;
 
                     for (Face face : faces) {
@@ -89,4 +82,5 @@ public class FaceDetectionProcessor {
                 })
                 .addOnFailureListener(e -> cb.onResult(Collections.emptyList(), Collections.emptyList(), Collections.emptyList()));
     }
+
 }

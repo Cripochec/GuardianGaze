@@ -51,6 +51,7 @@ dependencies {
     implementation(libs.appcompat)
     implementation(libs.material)
     implementation("com.airbnb.android:lottie:6.3.0")
+    implementation(libs.lifecycle.service)
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)

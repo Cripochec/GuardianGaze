@@ -8,6 +8,7 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import classification_report, confusion_matrix
 import matplotlib.pyplot as plt
 import seaborn as sns
+import joblib
 
 # === Конфигурация ===
 DATA_DIR = "../data/fatigue_dataset"
@@ -16,7 +17,6 @@ EPOCHS = 100
 BATCH_SIZE = 16
 MAX_SEQ_LEN = 35
 PATIENCE = 10
-MODEL_SAVE_PATH = "best_model.pt"
 
 # === Dataset ===
 class FatigueDataset(Dataset):
@@ -64,9 +64,9 @@ class CNNLSTM(nn.Module):
         self.fc = nn.Linear(64, num_classes)
 
     def forward(self, x):
-        x = x.permute(0, 2, 1)
+        x = x.permute(0, 2, 1)  # [B, features, seq_len]
         x = self.cnn(x)
-        x = x.permute(0, 2, 1)
+        x = x.permute(0, 2, 1)  # [B, seq_len, features]
         _, (h_n, _) = self.lstm(x)
         return self.fc(h_n[-1])
 
@@ -90,14 +90,17 @@ def train():
     y = le.fit_transform(labels)
     X_train, X_val, y_train, y_val = train_test_split(files, y, test_size=0.2, random_state=42)
 
+    # Сохраняем LabelEncoder
+    joblib.dump(le, "label_encoder.joblib")
+
     sample = np.load(X_train[0])
     if sample.ndim == 3 and sample.shape[2] == 2:
         sample = sample.reshape(sample.shape[0], -1)
     input_size = sample.shape[1]
     num_classes = len(le.classes_)
 
-    train_ds = FatigueDataset(X_train, y_train, max_seq_len=MAX_SEQ_LEN)
-    val_ds = FatigueDataset(X_val, y_val, max_seq_len=MAX_SEQ_LEN)
+    train_ds = FatigueDataset(X_train, y_train)
+    val_ds = FatigueDataset(X_val, y_val)
     train_dl = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True)
     val_dl = DataLoader(val_ds, batch_size=BATCH_SIZE)
 
@@ -126,6 +129,7 @@ def train():
 
         train_losses.append(total_loss)
 
+        # === Валидация ===
         model.eval()
         val_loss, correct, total = 0, 0, 0
         all_preds, all_true = [], []
@@ -150,7 +154,7 @@ def train():
 
         if val_loss < best_val_loss:
             best_val_loss = val_loss
-            torch.save(model.state_dict(), MODEL_SAVE_PATH)
+            torch.save(model.state_dict(), "best_model.pt")
             trigger_times = 0
         else:
             trigger_times += 1
@@ -158,9 +162,11 @@ def train():
                 print("Early stopping triggered")
                 break
 
+    # === Отчёт ===
     print("\nClassification Report:")
     print(classification_report(all_true, all_preds, target_names=le.classes_))
 
+    # === Confusion Matrix ===
     conf_mat = confusion_matrix(all_true, all_preds)
     plt.figure(figsize=(8, 6))
     sns.heatmap(conf_mat, annot=True, fmt='d', xticklabels=le.classes_, yticklabels=le.classes_, cmap="Blues")
@@ -170,6 +176,7 @@ def train():
     plt.tight_layout()
     plt.savefig("confusion_matrix.png")
 
+    # === Loss plot ===
     plt.figure()
     plt.plot(train_losses, label="Train Loss")
     plt.plot(val_losses, label="Val Loss")
@@ -179,6 +186,7 @@ def train():
     plt.ylabel("Loss")
     plt.savefig("loss_plot.png")
 
+    # === Accuracy plot ===
     plt.figure()
     plt.plot(val_accuracies, label="Val Accuracy")
     plt.legend()

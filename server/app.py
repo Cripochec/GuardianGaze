@@ -1,29 +1,27 @@
-import socketio
-from flask import Flask, request, jsonify, Response, session, render_template, redirect, url_for
-from flask_cors import CORS, cross_origin
-from db import *
-from modules import generate_credentials
-from settings import EMAILS_SUPPORT
-from smtp import password_generation, send_email
+from flask import request, session, redirect, url_for
+import json
+import os
 import threading
-import base64
-from flask import stream_with_context
+import time
+from collections import deque
+from typing import List, Dict, Union, Optional
+import ast
 
+import cv2
+import joblib
+import numpy as np
+import torch
 from flask import Flask, Response, render_template
+from flask import request, session, redirect, url_for
 from flask_cors import CORS
 from flask_sock import Sock
-import cv2
-import numpy as np
-import json
-from typing import List, Dict, Union, Optional
 
+from db import *
+from fatigue_detector import CNNLSTM
 from fatigue_detector import process_frame_for_fatigue
-from collections import deque
-import time
-import os
-from fatigue_model import CNNLSTM  # импорт модели
-import torch
-
+from modules import generate_credentials
+from settings import EMAILS_SUPPORT
+from smtp import send_email
 
 app = Flask(__name__)
 CORS(app, supports_credentials=True, resources={r"/*": {"origins": "*"}})
@@ -40,15 +38,17 @@ DATA_FILE = "static/json_data_message.json"
 user_fps_state = {}
 
 # === Загрузка обученной модели один раз при старте
-MODEL_PATH = "best_model.pt"
-NUM_CLASSES = 7  # замени на актуальное число классов
-INPUT_SIZE = 136  # если landmarks (68 точек по x, y), то 68*2=136
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model = CNNLSTM(input_size=136, num_classes=5)  # 68 точек * 2 (x, y)
+model.load_state_dict(torch.load("ML/fatigue-detection-yawdd/src/best_model.pt", map_location="cpu"))
+model.eval()
 
-fatigue_model = CNNLSTM(input_size=INPUT_SIZE, num_classes=NUM_CLASSES).to(device)
-fatigue_model.load_state_dict(torch.load(MODEL_PATH, map_location=device))
-fatigue_model.eval()
+label_encoder = joblib.load("ML/fatigue-detection-yawdd/src/label_encoder.joblib")
 
+# Функция отчисти всез уведомлений
+def schedule_notifications_cleanup():
+    while True:
+        clear_all_notifications()
+        time.sleep(12 * 60 * 60)  # 12 часов = 43200 секунд
 
 # WebSocket
 @sock.route('/ws_notify')
@@ -308,7 +308,8 @@ def get_importance(message):
         return "низкая"
     elif message == "Долгое закрытие глаз":
         return "высокая"
-
+    else:
+        return "средняя"
 
 @app.route('/authorize_driver', methods=['POST'])
 def authorize_driver():
@@ -368,8 +369,16 @@ def send_notification():
 def send_notification_list():
     try:
         data = request.get_json()
-        message_list = data['message_list']
         driver_id = data['driver_id']
+        message_list = data['message_list']
+
+        # 🛠️ Если message_list — строка (например: '["сообщение1", "сообщение2"]')
+        if isinstance(message_list, str):
+            try:
+                message_list = ast.literal_eval(message_list)
+            except Exception as e:
+                print("Ошибка преобразования строки в список:", e)
+                return jsonify({"status": 2, "error": "Некорректный формат message_list"})
 
         print(driver_id)
         print(message_list)
@@ -380,7 +389,6 @@ def send_notification_list():
             if not add_notification(message, importance, driver_id):
                 success = False
             else:
-                # Рассылаем каждое уведомление
                 broadcast_notification({
                     "driver_id": driver_id,
                     "message": message,
@@ -482,7 +490,7 @@ def ws_handler(ws):
                 # Обработка усталости
                 thresholds = client_params.get(user_id)
                 if thresholds:
-                    process_frame_for_fatigue(frame, user_id, thresholds, model)
+                    process_frame_for_fatigue(frame, user_id, thresholds, model, label_encoder)
 
     except Exception as e:
         print(f"[user_id={user_id}] Ошибка: {e}")
@@ -512,6 +520,11 @@ if __name__ == '__main__':
     #     print("✅ Уведомление успешно добавлено!")
     # except Exception as e:
     #     print("❌ Ошибка при добавлении уведомления:", e)
+
+    # Запуск потока для очистки уведомлений
+    clear_all_notifications()
+    cleanup_thread = threading.Thread(target=schedule_notifications_cleanup, daemon=True)
+    cleanup_thread.start()
 
     app.run(host='0.0.0.0', port=8000, debug=True)
 

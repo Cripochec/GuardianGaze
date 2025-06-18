@@ -262,3 +262,11 @@ def mark_notifications_as_read(driver_id):
                 WHERE id_driver = %s AND is_read = FALSE
             """, (driver_id,))
             conn.commit()
+
+# Очистка всех уведомлений
+def clear_all_notifications():
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM notifications")
+            conn.commit()
+            print("[Очистка] Все уведомления удалены.")

@@ -8,6 +8,7 @@ import okio.ByteString;
 import okhttp3.*;
 
 //VideoStreamUtils – класс для открытия WebSocket-соединения и отправки JPEG-кадров.
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 
@@ -19,6 +20,8 @@ public class VideoStreamUtils {
     private WebSocket webSocket;
     private boolean isConnected = false;
     private final Context context;
+    private boolean paramsSent = false;
+
 
     public interface Listener {
         void onConnected();
@@ -44,16 +47,26 @@ public class VideoStreamUtils {
                 .url(socketUrl)
                 .build();
         webSocket = client.newWebSocket(request, new SocketListener());
-        // client.dispatcher().executorService() будет поддерживать цикл событий
+//         client.dispatcher().executorService() будет поддерживать цикл событий
     }
 
     // Отправка кадра (JPEG-байты) через WebSocket. Если не подключено, просто игнорирует.
     public void sendFrame(byte[] jpegBytes) {
         if (!isConnected || webSocket == null) return;
-        // Socket.IO имеет собственный «заголовок» frames, но здесь мы просто шлём «чистые» байты.
-        // На Flask-SocketIO можно принять бинарные данные напрямую.
-        int driver_id = getUserId(context);
-        webSocket.send("driver_id:" + driver_id);
+
+        // Отправляем параметры только один раз за сессию
+        if (!paramsSent) {
+            int userId = getUserId(context);
+            float open = DataUtils.getCalibratedOpen(context);
+            float closed = DataUtils.getCalibratedClosed(context);
+
+            Locale locale = Locale.US;
+            String json = String.format(locale, "{\"user_id\":%d,\"open\":%f,\"closed\":%f}", userId, open, closed);
+
+            webSocket.send(json);
+            paramsSent = true;
+        }
+
         webSocket.send(ByteString.of(jpegBytes));
     }
 
@@ -63,6 +76,7 @@ public class VideoStreamUtils {
             webSocket.close(1000, "Client disconnect");
             webSocket = null;
         }
+        paramsSent = false;
     }
 
     // Геттер подключения

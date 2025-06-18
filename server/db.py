@@ -240,15 +240,18 @@ def get_unread_notifications(driver_id):
             return cur.fetchall()
 
 def add_notification(message, importance, driver_id):
-    with get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute("""
-                INSERT INTO notifications (message, importance, id_driver)
-                VALUES (%s, %s, %s)
-            """, (message, importance, driver_id))
-            conn.commit()
-            return True
-
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO notifications (message, importance, id_driver)
+                    VALUES (%s, %s, %s)
+                """, (message, importance, driver_id))
+                conn.commit()
+                return True
+    except Exception as e:
+        print(f"Database error: {e}")
+        return False
 
 def mark_notifications_as_read(driver_id):
     with get_connection() as conn:

@@ -53,6 +53,10 @@
         <activity android:name=".EyeSettingsActivity"
             android:exported="false"/>
 
+        <!-- Приветствующая активити -->
+        <activity android:name=".IntroActivity"
+            android:theme="@style/Theme.AppCompat.Light.NoActionBar" />
+
         <receiver android:name=".utils.NotificationActionReceiver"
             android:exported="true"/>
 

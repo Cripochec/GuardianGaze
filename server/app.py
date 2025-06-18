@@ -8,11 +8,21 @@ from smtp import password_generation, send_email
 import threading
 import base64
 from flask import stream_with_context
+
 from flask import Flask, Response, render_template
 from flask_cors import CORS
 from flask_sock import Sock
 import cv2
 import numpy as np
+import json
+from typing import List, Dict, Union, Optional
+
+from fatigue_detector import process_frame_for_fatigue
+from collections import deque
+import time
+import os
+from fatigue_model import CNNLSTM  # импорт модели
+import torch
 
 
 app = Flask(__name__)
@@ -20,6 +30,48 @@ CORS(app, supports_credentials=True, resources={r"/*": {"origins": "*"}})
 app.secret_key = 'supersecret'
 sock = Sock(app)
 latest_frames = {}
+client_params = {}
+notify_clients = set()
+
+# Файл для хранения новых уведомлений
+DATA_FILE = "static/json_data_message.json"
+
+# Для расчёта FPS каждого пользователя
+user_fps_state = {}
+
+# === Загрузка обученной модели один раз при старте
+MODEL_PATH = "best_model.pt"
+NUM_CLASSES = 7  # замени на актуальное число классов
+INPUT_SIZE = 136  # если landmarks (68 точек по x, y), то 68*2=136
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+fatigue_model = CNNLSTM(input_size=INPUT_SIZE, num_classes=NUM_CLASSES).to(device)
+fatigue_model.load_state_dict(torch.load(MODEL_PATH, map_location=device))
+fatigue_model.eval()
+
+
+# WebSocket
+@sock.route('/ws_notify')
+def ws_notify(ws):
+    notify_clients.add(ws)
+    try:
+        while True:
+            msg = ws.receive()
+            if msg is None:
+                break
+    finally:
+        notify_clients.discard(ws)
+
+def broadcast_notification(data):
+    import json
+    dead = set()
+    for ws in notify_clients:
+        try:
+            ws.send(json.dumps(data))
+        except Exception:
+            dead.add(ws)
+    for ws in dead:
+        notify_clients.discard(ws)
 
 
 # WebSite
@@ -209,6 +261,55 @@ def delete_driver(driver_id):
 
 
 # PhoneApplication
+def load_data() -> List[Dict[str, Union[int, str]]]:
+    """Загружает данные из файла JSON"""
+    try:
+        if not os.path.exists(DATA_FILE):
+            # Создаем файл с пустым списком, если его нет
+            with open(DATA_FILE, 'w', encoding='utf-8') as f:
+                json.dump([], f)
+            return []
+
+        with open(DATA_FILE, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            if not isinstance(data, list):  # Проверяем, что данные - это список
+                raise json.JSONDecodeError("Invalid JSON format", doc=DATA_FILE, pos=0)
+            return data
+    except (json.JSONDecodeError, IOError) as e:
+        print(f"Ошибка загрузки данных: {e}")
+        return []  # Всегда возвращаем список, даже при ошибке
+
+def save_data(data: List[Dict[str, Union[int, str]]]) -> None:
+    """Сохраняет данные в файл JSON"""
+    try:
+        with open(DATA_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except IOError as e:
+        print(f"Ошибка сохранения данных: {e}")
+
+def get_messages_by_id(id: int, importance_filter: Optional[str] = None) -> List[Dict[str, Union[int, str]]]:
+    """Возвращает сообщения по ID с фильтром важности"""
+    data = load_data()
+    if importance_filter:
+        return [item for item in data if item["id"] == id and item["importance"] == importance_filter]
+    return [item for item in data if item["id"] == id]
+
+def delete_messages_by_id(id: int, importance_filter: Optional[str] = None) -> None:
+    """Удаляет сообщения по ID с фильтром важности"""
+    data = load_data()
+    if importance_filter:
+        new_data = [item for item in data if not (item["id"] == id and item["importance"] == importance_filter)]
+    else:
+        new_data = [item for item in data if item["id"] != id]
+    save_data(new_data)
+
+def get_importance(message):
+    if message == "Долгий наклон головы":
+        return "низкая"
+    elif message == "Долгое закрытие глаз":
+        return "высокая"
+
+
 @app.route('/authorize_driver', methods=['POST'])
 def authorize_driver():
     try:
@@ -246,15 +347,15 @@ def send_notification():
         data = request.get_json()
         message = data['message']
         driver_id = data['driver_id']
-        importance = ""
-        if message == "Отслеживание началось" or message == "Отслеживание остановлено":
-            importance = "низкая"
-        elif message == "Наклон головы":
-            importance = "средняя"
-        elif message == "Долгое моргание":
-            importance = "высокая"
+        importance = get_importance(message)
 
         if add_notification(message, importance, driver_id):
+            # Рассылаем уведомление всем клиентам
+            broadcast_notification({
+                "driver_id": driver_id,
+                "message": message,
+                "importance": importance
+            })
             return jsonify({"status": 0})
         else:
             return jsonify({"status": 1})
@@ -269,80 +370,128 @@ def send_notification_list():
         data = request.get_json()
         message_list = data['message_list']
         driver_id = data['driver_id']
+
         print(driver_id)
         print(message_list)
 
-        # importance = ""
-        # if message == "Отслеживание началось" or message == "Отслеживание остановлено":
-        #     importance = "низкая"
-        # elif message == "Наклон головы":
-        #     importance = "средняя"
-        # elif message == "Долгое моргание":
-        #     importance = "высокая"
-        #
-        if 1:
-            return jsonify({"status": 0})
-        else:
-            return jsonify({"status": 1})
+        success = True
+        for message in message_list:
+            importance = get_importance(message)
+            if not add_notification(message, importance, driver_id):
+                success = False
+            else:
+                # Рассылаем каждое уведомление
+                broadcast_notification({
+                    "driver_id": driver_id,
+                    "message": message,
+                    "importance": importance
+                })
+
+        return jsonify({"status": 0 if success else 1})
 
     except Exception as e:
         print(f"ERROR: {e}")
         return jsonify({"status": 2})
 
+@app.route('/api/get_new_notifications/<int:driver_id>')
+def get_new_notifications(driver_id):
+    try:
+        notifications = get_messages_by_id(driver_id)
+        delete_messages_by_id(driver_id)
+        # Возвращаем список уведомлений в ответе
+        return jsonify({"status": 0, "notifications": notifications})
+    except Exception as e:
+        print(e)
+        return jsonify({"status": 1})
 
 
 # MLDetection
 @app.route("/video_feed/<int:driver_id>")
-def video_feed(driver_id):
+def video_feed_page(driver_id):
+    return render_template("video_feed.html", driver_id=driver_id)
+
+@app.route("/video_stream/<int:driver_id>")
+def video_stream(driver_id):
     def generate():
+        prev_time = time.time()
+        if driver_id not in user_fps_state:
+            user_fps_state[driver_id] = deque(maxlen=10)
         while True:
             frame = latest_frames.get(driver_id)
             if frame is not None:
+                current_time = time.time()
+                delta = current_time - prev_time
+                prev_time = current_time
+                if delta > 0:
+                    user_fps_state[driver_id].append(1.0 / delta)
+                fps = sum(user_fps_state[driver_id]) / len(user_fps_state[driver_id]) if user_fps_state[driver_id] else 0.0
+                text = f"FPS: {fps:.1f}"
+                cv2.putText(
+                    frame, text, (10, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 0), 2, cv2.LINE_AA
+                )
                 _, jpeg = cv2.imencode('.jpg', frame)
                 frame_bytes = jpeg.tobytes()
                 yield (b'--frame\r\n'
                        b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n\r\n')
+            else:
+                time.sleep(0.01)
     return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 
 @sock.route('/ws')
 def ws_handler(ws):
     """
-    Первое сообщение должно содержать ID водителя (например: 'driver_id:12'),
-    затем идут бинарные кадры (bytes)
+    Первое сообщение — JSON с user_id, open, closed.
+    Далее — бинарные кадры.
     """
-    driver_id = None
+    user_id = None
     try:
-        # Получаем первую строку с ID водителя
+        # Получаем параметры от клиента
         raw = ws.receive()
-        if isinstance(raw, str) and raw.startswith("driver_id:"):
-            driver_id = int(raw.split(":")[1])
-        else:
-            print("Ожидался driver_id, получено:", raw)
+        try:
+            params = json.loads(raw)
+            user_id = params["user_id"]
+            open_val = params["open"]
+            closed_val = params["closed"]
+            print(f"Подключился user_id={user_id}, open={open_val}, closed={closed_val}")
+            client_params[user_id] = {"open": open_val, "closed": closed_val}
+        except Exception as e:
+            print("Ожидался JSON с параметрами, получено:", raw)
             ws.close()
             return
 
-        # Основной цикл приёма бинарных данных
+        # Основной цикл приёма бинарных JPEG-кадров
         while True:
             data = ws.receive()
             if data is None:
                 break
-
             if isinstance(data, str):
-                # print(f"[driver_id={driver_id}] Получено текстовое сообщение во время передачи кадров — пропущено.")
+                print(f"[user_id={user_id}] Получено текстовое сообщение во время передачи кадров — пропущено.")
                 continue
 
-            # data — это bytes
+            # Декодируем JPEG
             np_array = np.frombuffer(data, np.uint8)
             frame = cv2.imdecode(np_array, cv2.IMREAD_COLOR)
+
+            # 🔁 Поворот кадра сразу здесь
             if frame is not None:
-                latest_frames[driver_id] = frame
+                frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
+                latest_frames[user_id] = frame
+
+                # Обработка усталости
+                thresholds = client_params.get(user_id)
+                if thresholds:
+                    process_frame_for_fatigue(frame, user_id, thresholds, model)
 
     except Exception as e:
-        print(f"[driver_id={driver_id}] Ошибка: {e}")
+        print(f"[user_id={user_id}] Ошибка: {e}")
     finally:
-        if driver_id in latest_frames:
-            del latest_frames[driver_id]
+        if user_id in latest_frames:
+            del latest_frames[user_id]
+        if user_id in client_params:
+            del client_params[user_id]
+
 
 
 

@@ -1,33 +1,27 @@
 package com.example.mobileapp;
 
-import static com.example.mobileapp.utils.DataUtils.getDetectionBlinking;
-import static com.example.mobileapp.utils.DataUtils.getUserId;
+import static com.example.mobileapp.utils.DataUtils.getEntry;
 import static com.example.mobileapp.utils.DataUtils.isDarkModeEnabled;
-
-import com.example.mobileapp.services.FatigueDetectionService;
 import com.example.mobileapp.utils.CameraHelper;
 import com.example.mobileapp.utils.FaceDetectionProcessor;
+import com.example.mobileapp.utils.NetworkStateReceiver;
 import com.example.mobileapp.utils.NotificationActionReceiver;
 import com.example.mobileapp.utils.NotificationUtils;
 import com.example.mobileapp.utils.OverlayView;
 
 
-import android.Manifest;
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.ValueAnimator;
 import android.annotation.SuppressLint;
-import android.content.BroadcastReceiver;
-import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.content.pm.PackageManager;
 import android.graphics.ImageFormat;
 import android.graphics.Rect;
 import android.media.AudioAttributes;
 import android.media.MediaPlayer;
+import android.net.ConnectivityManager;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
@@ -35,12 +29,12 @@ import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.TextureView;
+import android.view.WindowManager;
 import android.view.animation.AccelerateDecelerateInterpolator;
 import android.widget.Button;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -58,6 +52,8 @@ import com.example.mobileapp.utils.FatigueAnalyzer;
 import com.example.mobileapp.utils.RequestUtils;
 import com.example.mobileapp.utils.ToastUtils;
 import com.example.mobileapp.utils.VideoStreamUtils;
+import com.getkeepsafe.taptargetview.TapTarget;
+import com.getkeepsafe.taptargetview.TapTargetView;
 import com.google.common.util.concurrent.ListenableFuture;
 
 import org.json.JSONArray;
@@ -69,8 +65,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
-
-
 
 
 public class MainActivity extends AppCompatActivity {
@@ -87,19 +81,36 @@ public class MainActivity extends AppCompatActivity {
 
     private Executor cameraExecutor;
     private ListenableFuture<ProcessCameraProvider> cameraProviderFuture;
-    private ImageButton toggleCardButton;
+    private ImageButton toggleCardButton, settingsButton;
     private boolean isCardVisible = false;
     private ValueAnimator cardAnimator;
     private ImageAnalysis fatigueImageAnalysis;
     private FaceDetectionProcessor fatigueProcessor;
     private CameraHelper cameraHelper;
     private final List<String> pendingNotifications = new ArrayList<>();
+    private final List<String> serverNotifications = new ArrayList<>();
+    private int currentTutorialStep = 0;
+    OverlayView overlayView;
+    TextureView textureView;
+    private NetworkStateReceiver networkStateReceiver;
+    private boolean wasStreaming = false;
+    private boolean isPreviewActive = false;
+    private boolean isFirstPreviewActive = true;
+
+    private android.os.Handler notificationHandler = new android.os.Handler();
+    private final Runnable notificationRunnable = new Runnable() {
+        @Override
+        public void run() {
+            checkServerNotifications();
+            notificationHandler.postDelayed(this, 10000); // каждые 10 секунд
+        }
+    };
 
 
     private final ActivityResultLauncher<String> requestNotificationPermissionLauncher =
             registerForActivityResult(new ActivityResultContracts.RequestPermission(), isGranted -> {
                 if (!isGranted) {
-                    Toast.makeText(this, "Разрешите показ уведомлений", Toast.LENGTH_SHORT).show();
+                    showToast("Разрешите показ уведомлений");
                 }
             });
 
@@ -113,21 +124,19 @@ public class MainActivity extends AppCompatActivity {
         }
 
         super.onCreate(savedInstanceState);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON); // экран не тухнет а затемняеться
         setContentView(R.layout.activity_main);
 
         lottieAnimation = findViewById(R.id.lottieAnimation);
         trackingButton = findViewById(R.id.buttonTracking);
         notificationContainer = findViewById(R.id.notificationContainer);
-        ImageButton settingsButton = findViewById(R.id.buttonSettings);
-
+        settingsButton = findViewById(R.id.buttonSettings);
         toggleCardButton = findViewById(R.id.toggleCardButton);
+        textureView = findViewById(R.id.textureView);
+        overlayView = findViewById(R.id.overlayView);
 
-        TextureView textureView = findViewById(R.id.textureView);
-        OverlayView overlayView = findViewById(R.id.overlayView);
-        cameraHelper = new CameraHelper(this, textureView, overlayView);
-
-        cardAnimator = ValueAnimator.ofInt(0, 300);
-        cardAnimator.setDuration(300);
+        cardAnimator = ValueAnimator.ofInt(0, 420);
+        cardAnimator.setDuration(420);
         cardAnimator.setInterpolator(new AccelerateDecelerateInterpolator());
         cardAnimator.addUpdateListener(animation -> {
             int val = (Integer) animation.getAnimatedValue();
@@ -138,58 +147,22 @@ public class MainActivity extends AppCompatActivity {
 
         toggleCardButton.setOnClickListener(v -> toggleCardView());
 
+
         String serverWsUrl = "ws://" + DataUtils.IP + "/ws";
         videoStream = new VideoStreamUtils(this, serverWsUrl, new VideoStreamUtils.Listener() {
             @Override
-            public void onConnected() {
-                runOnUiThread(() -> Toast.makeText(MainActivity.this, "WebSocket: подключено", Toast.LENGTH_SHORT).show());
-
-                try {
-                    JSONArray jsonArray = new JSONArray(pendingNotifications);
-
-                    JSONObject Data = new JSONObject();
-                    Data.put("message_list", jsonArray.toString());
-                    Data.put("driver_id", getUserId(MainActivity.this));
-
-                    new RequestUtils(MainActivity.this, "send_notification_list", "POST", Data.toString(), callbackSendNotificationList).execute();
-                } catch (Exception e) {
-                    Log.e(TAG, "MainActivity, OnCreate.videoStream" + e);
-                    new RequestUtils(MainActivity.this, "log", "POST", "{\"module\": \"MainActivity\", \"method\": \"OnCreate.videoStream\", \"error\": \"" + e + "\"}", callbackLog).execute();
-                }
-                pendingNotifications.clear();
-            }
-
+            public void onConnected() {}
 
             @Override
-            public void onDisconnected() {
-                runOnUiThread(() -> Toast.makeText(MainActivity.this, "WebSocket: отключено", Toast.LENGTH_SHORT).show());
-            }
+            public void onDisconnected() {}
 
             @Override
             public void onError(Throwable t) {
-                runOnUiThread(() -> Toast.makeText(MainActivity.this, "WebSocket ошибка: " + t.getMessage(), Toast.LENGTH_LONG).show());
+                showToast("WebSocket ошибка: " + t.getMessage());
             }
         });
-        fatigueProcessor = new FaceDetectionProcessor(this);
 
-        if (!allPermissionsGranted()) {
-            requestPermissionsLauncher.launch(new String[]{Manifest.permission.CAMERA});
-        }
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
-                    != PackageManager.PERMISSION_GRANTED) {
-                requestNotificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
-            }
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            requestNotificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
-        }
-
-
-        if (allPermissionsGranted()) {
-            setupCamera();
-        }
+//        fatigueProcessor = new FaceDetectionProcessor(this);
 
         Intent intent = getIntent();
         if (intent != null && "ACTION_TOGGLE_TRACKING".equals(intent.getAction())) {
@@ -197,6 +170,10 @@ public class MainActivity extends AppCompatActivity {
             updateTrackingState();
         }
 
+        // Туториал по использованию приложения
+        if (getEntry(this)) {
+            startTutorial();
+        }
 
         trackingButton.setOnClickListener(v -> {
             isTracking = !isTracking;
@@ -209,13 +186,30 @@ public class MainActivity extends AppCompatActivity {
         });
 
         addNotification("Система готова к отслеживанию");
+
+        toggleCardView();
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        // Отключаем видеостриминг
         videoStream.disconnect();
+        // Очищаем уведомления
         NotificationUtils.cancelNotification(this);
+        // Останавливаем локальную детекцию, если она была запущена
+        stopLocalDetection();
+        // Останавливаем обработчик уведомлений
+        notificationHandler.removeCallbacks(notificationRunnable);
+        // Отписываемся от слушателя сети
+        if (networkStateReceiver != null) {
+            unregisterReceiver(networkStateReceiver);
+            networkStateReceiver = null;
+        }
+        if (cameraHelper != null) {
+            cameraHelper.stopCamera();
+            isPreviewActive = false;
+        }
     }
 
     @Override
@@ -235,17 +229,6 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // Обработка логирования на сервере
-    RequestUtils.Callback callbackLog = (fragment, result) -> {
-        try {
-            JSONObject jsonObject = new JSONObject(result);
-            if (jsonObject.getInt("status") != 0){
-                showToast("Ошибка логирования на сервере.");
-            }
-        } catch (Exception e) {
-            showToast("Ошибка логирования на клиенте.");
-        }
-    };
 
     RequestUtils.Callback callbackSendNotification = (fragment, result) -> {
         try {
@@ -259,9 +242,7 @@ public class MainActivity extends AppCompatActivity {
             }
 
         } catch (Exception e) {
-            new RequestUtils(this, "log", "POST", "{\"module\": \"MainActivity\", \"method\": \"callbackSendNotification\", \"error\": \"" + e + "\"}", callbackLog).execute();
-            showToast("Ошибка callback.");
-
+            Log.e(TAG, "Ошибка callback. callbackSendNotification. "+ e);
         }
     };
 
@@ -277,146 +258,48 @@ public class MainActivity extends AppCompatActivity {
             }
 
         } catch (Exception e) {
-            new RequestUtils(this, "log", "POST", "{\"module\": \"MainActivity\", \"method\": \"callbackSendNotificationList\", \"error\": \"" + e + "\"}", callbackLog).execute();
-            showToast("Ошибка callback.");
-
+            Log.e(TAG, "Ошибка callback. callbackSendNotificationList. "+ e);
         }
     };
 
-    private void showToast(String message) {
-        this.runOnUiThread(() -> ToastUtils.showShortToast(this, message));
-    }
-
-    private void toggleCardView() {
-        if (cardAnimator.isRunning()) return;
-
-        isCardVisible = !isCardVisible;
-        cardAnimator.removeAllListeners();
-
-        if (isCardVisible) {
-            findViewById(R.id.cameraPreviewFrameLayout).setVisibility(View.VISIBLE);
-            cardAnimator.setIntValues(0, 420);
-            toggleCardButton.setImageResource(R.drawable.ic_arrow_down);
-
-            // ✅ Запускаем камеру при первом открытии
-            cameraHelper.startCamera();
-
-        } else {
-            cardAnimator.setIntValues(420, 0);
-            toggleCardButton.setImageResource(R.drawable.ic_arrow_up);
-
-            cardAnimator.addListener(new AnimatorListenerAdapter() {
-                @Override
-                public void onAnimationEnd(Animator animation) {
-                    findViewById(R.id.cameraPreviewFrameLayout).setVisibility(View.GONE);
-                    // ⛔ Остановка камеры при скрытии
-                    cameraHelper.stopCamera();
-                }
-            });
-        }
-
-        cardAnimator.start();
-    }
-
-    private void updateTrackingState() {
+    RequestUtils.Callback callbackGetNewNotifications = (fragment, result) -> {
         try {
-            if (isTracking) {
-                trackingButton.setText("Завершить отслеживание");
-                trackingButton.setBackgroundColor(getColor(android.R.color.holo_red_dark));
-                // Запускаем только сервис!
-                Intent serviceIntent = new Intent(this, FatigueDetectionService.class);
-                ContextCompat.startForegroundService(this, serviceIntent);
-
+            JSONObject jsonObject = new JSONObject(result);
+            int status = jsonObject.getInt("status");
+            if (status == 0) {
+                JSONArray notifications = jsonObject.getJSONArray("notifications");
+                for (int i = 0; i < notifications.length(); i++) {
+                    JSONObject notif = notifications.getJSONObject(i);
+                    // Получаем текст сообщения
+                    String message = notif.optString("message", "");
+                    runOnUiThread(() -> addNotification(message));
+                }
             } else {
-                trackingButton.setText("Начать отслеживание");
-                trackingButton.setBackgroundColor(getColor(android.R.color.holo_green_dark));
-                stopService(new Intent(this, FatigueDetectionService.class));
-
-                videoStream.disconnect();
-                addNotification("Отслеживание остановлено");
-                stopLoading();
-                findViewById(R.id.recOverlay).setVisibility(View.GONE);
-
-                if (fatigueImageAnalysis != null) {
-                    cameraProviderFuture.addListener(() -> {
-                        try {
-                            ProcessCameraProvider cameraProvider = cameraProviderFuture.get();
-                            cameraProvider.unbind(fatigueImageAnalysis);
-                            fatigueImageAnalysis = null;
-                        } catch (Exception e) {
-                            Log.e(TAG, "Ошибка unbind FatigueAnalyzer", e);
-                        }
-                    }, ContextCompat.getMainExecutor(this));
-                }
+                Log.e(TAG, "Ошибка обработки уведомлений с сервера");
             }
-            NotificationUtils.showTrackingNotification(this, isTracking);
-        } catch (Exception ex) {
-            Log.e("MainActivity", "Ошибка в updateTrackingState: " + ex);
-        }
-    }
-
-    private void setupCamera() {
-        cameraProviderFuture = ProcessCameraProvider.getInstance(this);
-        cameraExecutor = ContextCompat.getMainExecutor(this);
-
-        cameraProviderFuture.addListener(() -> {
-            try {
-                ProcessCameraProvider cameraProvider = cameraProviderFuture.get();
-
-                ImageAnalysis imageAnalysis = new ImageAnalysis.Builder()
-                        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                        .build();
-
-                imageAnalysis.setAnalyzer(cameraExecutor, imageProxy -> {
-                    if (isTracking) {
-                        byte[] jpegBytes = imageProxyToJpeg(imageProxy);
-                        if (jpegBytes != null) {
-                            videoStream.sendFrame(jpegBytes);
-                        }
-                    }
-                    imageProxy.close();
-                });
-
-                CameraSelector cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA;
-                cameraProvider.unbindAll();
-                cameraProvider.bindToLifecycle(this, cameraSelector, imageAnalysis);
-
-            } catch (ExecutionException | InterruptedException e) {
-                Log.e(TAG, "Ошибка CameraProvider", e);
-            }
-        }, cameraExecutor);
-    }
-
-    private byte[] imageProxyToJpeg(ImageProxy image) {
-        try {
-            ImageProxy.PlaneProxy[] planes = image.getPlanes();
-            if (planes.length < 3) return null;
-
-            ByteBuffer yBuffer = planes[0].getBuffer();
-            ByteBuffer uBuffer = planes[1].getBuffer();
-            ByteBuffer vBuffer = planes[2].getBuffer();
-
-            int ySize = yBuffer.remaining();
-            int uSize = uBuffer.remaining();
-            int vSize = vBuffer.remaining();
-
-            byte[] yuvBytes = new byte[ySize + uSize + vSize];
-            yBuffer.get(yuvBytes, 0, ySize);
-            vBuffer.get(yuvBytes, ySize, vSize);
-            uBuffer.get(yuvBytes, ySize + vSize, uSize);
-
-            android.graphics.YuvImage yuvImage = new android.graphics.YuvImage(
-                    yuvBytes, ImageFormat.NV21, image.getWidth(), image.getHeight(), null
-            );
-
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            yuvImage.compressToJpeg(new Rect(0, 0, image.getWidth(), image.getHeight()), 60, out);
-            return out.toByteArray();
-
         } catch (Exception e) {
-            Log.e(TAG, "Ошибка преобразования ImageProxy в JPEG", e);
-            return null;
+            Log.e(TAG, "Ошибка callback. callbackGetNewNotifications. "+e);}
+    };
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        networkStateReceiver = new NetworkStateReceiver(this);
+        IntentFilter filter = new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION);
+        registerReceiver(networkStateReceiver, filter);
+
+        notificationHandler.post(notificationRunnable);
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        if (networkStateReceiver != null) {
+            unregisterReceiver(networkStateReceiver);
+            networkStateReceiver = null;
         }
+
+        notificationHandler.removeCallbacks(notificationRunnable);
     }
 
     @SuppressLint("SetTextI18n")
@@ -472,41 +355,263 @@ public class MainActivity extends AppCompatActivity {
         notificationContainer.addView(notificationView, 0);
 
         // Попытка отправки на сервер
-        if (videoStream.isConnected() && !message.equals("Система готова к отслеживанию")) {
+        if (DataUtils.getDetectionBlinking(this) && !message.equals("Система готова к отслеживанию")) {
             try {
-                JSONObject sendDataNotification = new JSONObject();
-                sendDataNotification.put("message", message);
-                sendDataNotification.put("driver_id", getUserId(this));
+                JSONObject loginData = new JSONObject();
+                loginData.put("message", message);
+                loginData.put("driver_id", DataUtils.getUserId(this));
 
-                new RequestUtils(this, "send_notification", "POST", sendDataNotification.toString(), callbackSendNotification).execute();
+                new RequestUtils(this, "send_notification", "POST", loginData.toString(), callbackSendNotification).execute();
             } catch (Exception e) {
-                Log.e(TAG, "MainActivity, addNotification" + e);
-                new RequestUtils(this, "log", "POST", "{\"module\": \"MainActivity\", \"method\": \"addNotification\", \"error\": \"" + e + "\"}", callbackLog).execute();
-            }
+                Log.e(TAG, "Ошибка ReqestUtils. send_notification. "+e);}
+        } else if (!message.equals("Система готова к отслеживанию")) {
+            // Если нет соединения — накапливаем уведомления
+            pendingNotifications.add(message);
         }
     }
 
-    private boolean allPermissionsGranted() {
-        return ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
-                == PackageManager.PERMISSION_GRANTED;
-    }
+    private void toggleCardView() {
+        if (cardAnimator.isRunning()) return;
 
-    private final ActivityResultLauncher<String[]> requestPermissionsLauncher =
-            registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), result -> {
-                boolean granted = true;
-                for (Boolean ok : result.values()) {
-                    if (!ok) {
-                        granted = false;
-                        break;
+        // Если включено отслеживание — выключаем его перед открытием превью
+        if (isTracking) {
+            isTracking = false;
+            updateTrackingState();
+        }
+
+        isCardVisible = !isCardVisible;
+        cardAnimator.removeAllListeners();
+
+        if (isCardVisible) {
+            findViewById(R.id.cameraPreviewFrameLayout).setVisibility(View.VISIBLE);
+            cardAnimator.setIntValues(0, 420);
+            toggleCardButton.setImageResource(R.drawable.ic_arrow_down);
+
+            // Запустить превью, если ещё не запущено
+            if (cameraHelper == null) {
+                cameraHelper = new CameraHelper(this, textureView, overlayView);
+            }
+            cameraHelper.startCamera();
+            isPreviewActive = true;
+
+            if (isFirstPreviewActive){
+                isFirstPreviewActive = false;
+
+                isCardVisible = !isCardVisible;
+                cardAnimator.removeAllListeners();
+
+                cardAnimator.setIntValues(420, 0);
+                toggleCardButton.setImageResource(R.drawable.ic_arrow_up);
+
+                cardAnimator.addListener(new AnimatorListenerAdapter() {
+                    @Override
+                    public void onAnimationEnd(Animator animation) {
+                        findViewById(R.id.cameraPreviewFrameLayout).setVisibility(View.GONE);
+                        // Остановить превью
+                        if (cameraHelper != null) {
+                            cameraHelper.stopCamera();
+                        }
+                        isPreviewActive = false;
                     }
-                }
-                if (granted) {
-                    setupCamera();
-                } else {
-                    Toast.makeText(this, "Разрешение на камеру обязательно", Toast.LENGTH_SHORT).show();
+                });
+            }
+
+        } else {
+            cardAnimator.setIntValues(420, 0);
+            toggleCardButton.setImageResource(R.drawable.ic_arrow_up);
+
+            cardAnimator.addListener(new AnimatorListenerAdapter() {
+                @Override
+                public void onAnimationEnd(Animator animation) {
+                    findViewById(R.id.cameraPreviewFrameLayout).setVisibility(View.GONE);
+                    // Остановить превью
+                    if (cameraHelper != null) {
+                        cameraHelper.stopCamera();
+                    }
+                    isPreviewActive = false;
                 }
             });
+        }
 
+        cardAnimator.start();
+    }
+
+    private void updateTrackingState() {
+        try {
+            // Если открыто превью — закрываем его перед запуском отслеживания
+            if (isCardVisible) {
+                toggleCardView();
+            }
+
+            if (isTracking) {
+                trackingButton.setText("Завершить отслеживание");
+                trackingButton.setBackgroundColor(getColor(android.R.color.holo_red_dark));
+                startLoading();
+                findViewById(R.id.recOverlay).setVisibility(View.VISIBLE);
+
+                boolean localDetection = DataUtils.getDetectionBlinking(this);
+
+                if (localDetection) {
+                    startLocalDetection();
+                    videoStream.disconnect();
+                } else {
+                    startVideoStreaming();
+                    stopLocalDetection();
+                }
+
+            } else {
+                trackingButton.setText("Начать отслеживание");
+                trackingButton.setBackgroundColor(getColor(android.R.color.holo_green_dark));
+                stopLoading();
+                findViewById(R.id.recOverlay).setVisibility(View.GONE);
+
+                stopVideoStreaming();
+                stopLocalDetection();
+            }
+
+            NotificationUtils.showTrackingNotification(this, isTracking);
+        } catch (Exception ex) {
+            Log.e("MainActivity", "Ошибка в updateTrackingState: " + ex);
+        }
+    }
+
+    private void startVideoStreaming() {
+        // Остановить превью, если оно активно
+        if (isPreviewActive && cameraHelper != null) {
+            cameraHelper.stopCamera();
+            isPreviewActive = false;
+        }
+        videoStream.connect();
+        setupCameraForStreaming();
+    }
+
+    private void stopVideoStreaming() {
+        videoStream.disconnect();
+    }
+
+    private void startLocalDetection() {
+        // Остановить превью, если оно активно
+        if (isPreviewActive && cameraHelper != null) {
+            cameraHelper.stopCamera();
+            isPreviewActive = false;
+        }
+        setupCameraForLocalDetection();
+    }
+
+    private void stopLocalDetection() {
+        if (cameraProviderFuture != null && fatigueImageAnalysis != null) {
+            cameraProviderFuture.addListener(() -> {
+                try {
+                    ProcessCameraProvider cameraProvider = cameraProviderFuture.get();
+                    cameraProvider.unbind(fatigueImageAnalysis);
+                    fatigueImageAnalysis = null;
+                } catch (Exception e) {
+                    Log.e(TAG, "Ошибка остановки локальной детекции", e);
+                }
+            }, ContextCompat.getMainExecutor(this));
+        }
+    }
+
+    private void setupCameraForStreaming() {
+        cameraProviderFuture = ProcessCameraProvider.getInstance(this);
+        cameraExecutor = ContextCompat.getMainExecutor(this);
+
+        cameraProviderFuture.addListener(() -> {
+            try {
+                ProcessCameraProvider cameraProvider = cameraProviderFuture.get();
+
+                ImageAnalysis imageAnalysis = new ImageAnalysis.Builder()
+                        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                        .build();
+
+                imageAnalysis.setAnalyzer(cameraExecutor, imageProxy -> {
+                    byte[] jpegBytes = imageProxyToJpeg(imageProxy);
+                    if (jpegBytes != null) {
+                        videoStream.sendFrame(jpegBytes);
+                    }
+                    imageProxy.close();
+                });
+
+                CameraSelector cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA;
+                cameraProvider.unbindAll();
+                cameraProvider.bindToLifecycle(this, cameraSelector, imageAnalysis);
+
+            } catch (ExecutionException | InterruptedException e) {
+                Log.e(TAG, "Ошибка setupCameraForStreaming", e);
+            }
+        }, cameraExecutor);
+    }
+
+    private void setupCameraForLocalDetection() {
+        cameraProviderFuture = ProcessCameraProvider.getInstance(this);
+        cameraExecutor = ContextCompat.getMainExecutor(this);
+
+        cameraProviderFuture.addListener(() -> {
+            try {
+                ProcessCameraProvider cameraProvider = cameraProviderFuture.get();
+
+                fatigueImageAnalysis = new ImageAnalysis.Builder()
+                        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                        .build();
+
+                FatigueAnalyzer analyzer = new FatigueAnalyzer(this, new FatigueAnalyzer.Listener() {
+                    @Override
+                    public void onBlink() {
+                        runOnUiThread(() -> addNotification("Долгое закрытие глаз"));
+                    }
+
+                    @Override
+                    public void onHeadTilt() {
+                        runOnUiThread(() -> addNotification("Долгий наклон головы"));
+                    }
+                });
+
+                fatigueImageAnalysis.setAnalyzer(cameraExecutor, analyzer);
+
+                CameraSelector cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA;
+                cameraProvider.unbindAll();
+                cameraProvider.bindToLifecycle(this, cameraSelector, fatigueImageAnalysis);
+
+            } catch (ExecutionException | InterruptedException e) {
+                Log.e(TAG, "Ошибка setupCameraForLocalDetection", e);
+            }
+        }, cameraExecutor);
+    }
+
+    // Преобразования ImageProxy в JPEG
+    private byte[] imageProxyToJpeg(ImageProxy image) {
+        try {
+            ImageProxy.PlaneProxy[] planes = image.getPlanes();
+            if (planes.length < 3) return null;
+
+            ByteBuffer yBuffer = planes[0].getBuffer();
+            ByteBuffer uBuffer = planes[1].getBuffer();
+            ByteBuffer vBuffer = planes[2].getBuffer();
+
+            int ySize = yBuffer.remaining();
+            int uSize = uBuffer.remaining();
+            int vSize = vBuffer.remaining();
+
+            byte[] yuvBytes = new byte[ySize + uSize + vSize];
+            yBuffer.get(yuvBytes, 0, ySize);
+            vBuffer.get(yuvBytes, ySize, vSize);
+            uBuffer.get(yuvBytes, ySize + vSize, uSize);
+
+            android.graphics.YuvImage yuvImage = new android.graphics.YuvImage(
+                    yuvBytes, ImageFormat.NV21, image.getWidth(), image.getHeight(), null
+            );
+
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            yuvImage.compressToJpeg(new Rect(0, 0, image.getWidth(), image.getHeight()), 60, out);
+            return out.toByteArray();
+
+        } catch (Exception e) {
+            Log.e(TAG, "Ошибка преобразования ImageProxy в JPEG", e);
+            return null;
+        }
+    }
+
+    // Анимация REC
     private void startLoading() {
         lottieAnimation.setVisibility(View.VISIBLE);
         lottieAnimation.playAnimation();
@@ -517,28 +622,148 @@ public class MainActivity extends AppCompatActivity {
         lottieAnimation.setVisibility(View.GONE);
     }
 
-    private final BroadcastReceiver fatigueReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            String message = intent.getStringExtra("message");
-            Log.d("MainActivity", "Получено событие усталости: " + message);
-            if (message != null) addNotification(message);
-        }
-    };
 
-    @Override
-    protected void onResume() {
-        super.onResume();
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(fatigueReceiver, new IntentFilter("com.example.mobileapp.FATIGUE_EVENT"), Context.RECEIVER_NOT_EXPORTED);
-        } else {
-            registerReceiver(fatigueReceiver, new IntentFilter("com.example.mobileapp.FATIGUE_EVENT"));
+    // Туториал по использованию приложения
+    private void startTutorial() {
+        showTutorialStep(currentTutorialStep);
+    }
+
+    private void showTutorialStep(int step) {
+        switch (step) {
+            case 0:
+                highlightTrackingButton();
+                break;
+            case 1:
+                highlightSettingsButton();
+                break;
+            case 2:
+                highlightCameraPreview();
+                break;
+            default:
+                completeTutorial();
         }
     }
 
-    @Override
-    protected void onPause() {
-        super.onPause();
-        unregisterReceiver(fatigueReceiver);
+    private void highlightTrackingButton() {
+        TapTargetView.showFor(this,
+                TapTarget.forView(findViewById(R.id.buttonTracking),
+                                "Кнопка отслеживания",
+                                "Нажмите здесь, чтобы начать мониторинг вашего состояния")
+                        .outerCircleColor(R.color.teal_200)
+                        .outerCircleAlpha(0.96f)
+                        .targetCircleColor(android.R.color.white)
+                        .titleTextSize(20)
+                        .descriptionTextSize(16)
+                        .drawShadow(true)
+                        .cancelable(false)
+                        .tintTarget(true)
+                        .transparentTarget(true),
+                new TapTargetView.Listener() {
+                    @Override
+                    public void onTargetClick(TapTargetView view) {
+                        super.onTargetClick(view);
+                        currentTutorialStep++;
+                        showTutorialStep(currentTutorialStep);
+                    }
+                });
+    }
+
+    private void highlightSettingsButton() {
+        View settingsBtn = findViewById(R.id.buttonSettings);
+        settingsBtn.post(() -> {
+            TapTargetView.showFor(this,
+                TapTarget.forView(settingsBtn,
+                        "Настройки",
+                        "Здесь вы можете изменить параметры приложения")
+                    .outerCircleColor(R.color.purple_200)
+                    .titleTextSize(20)
+                    .descriptionTextSize(16)
+                    .drawShadow(true)
+                    .cancelable(false),
+                new TapTargetView.Listener() {
+                    @Override
+                    public void onTargetClick(TapTargetView view) {
+                        super.onTargetClick(view);
+                        currentTutorialStep++;
+                        showTutorialStep(currentTutorialStep);
+                    }
+                });
+        });
+    }
+
+    private void highlightCameraPreview() {
+        TapTargetView.showFor(this,
+                TapTarget.forView(findViewById(R.id.toggleCardButton),
+                                "Превью камеры",
+                                "Здесь вы можете увидеть то, как вас видит приложение")
+                        .outerCircleColor(R.color.teal_700)
+                        .titleTextSize(20)
+                        .descriptionTextSize(16)
+                        .drawShadow(true)
+                        .cancelable(false),
+                new TapTargetView.Listener() {
+                    @Override
+                    public void onTargetClick(TapTargetView view) {
+                        super.onTargetClick(view);
+                        completeTutorial();
+                    }
+                });
+    }
+
+    private void completeTutorial() {
+        settingsButton.callOnClick();
+    }
+
+
+    // Toast уведомление
+    private void showToast(String message) {
+        this.runOnUiThread(() -> ToastUtils.showShortToast(this, message));
+    }
+
+
+    // Связь с интернетом
+    public void onNetworkLost() {
+        if (!DataUtils.getDetectionBlinking(this)) {
+            // Был режим стриминга — переключаемся на локальную обработку
+            wasStreaming = true;
+            stopVideoStreaming();
+            startLocalDetection();
+            showToast("Интернет пропал, включена локальная обработка!");
+        }
+    }
+
+    public void onNetworkRestored() {
+        if (wasStreaming) {
+            // Вернуть стриминг, отправить накопленные уведомления
+            stopLocalDetection();
+            startVideoStreaming();
+            sendPendingNotifications();
+            wasStreaming = false;
+            showToast("Интернет пропал, включена локальная обработка!");
+
+        } else if (DataUtils.getDetectionBlinking(this)) {
+            // Если был режим локальной обработки — просто отправить накопленные уведомления
+            sendPendingNotifications();
+        }
+    }
+
+    private void sendPendingNotifications() {
+        if (!pendingNotifications.isEmpty()) {
+            try {
+                JSONArray jsonArray = new JSONArray(pendingNotifications);
+                JSONObject Data = new JSONObject();
+                Data.put("message_list", jsonArray.toString());
+                Data.put("driver_id", DataUtils.getUserId(this));
+                new RequestUtils(this, "send_notification_list", "POST", Data.toString(), callbackSendNotificationList).execute();
+                pendingNotifications.clear();
+            } catch (Exception e) {
+                Log.e(TAG, "Ошибка отправки накопленных уведомлений", e);
+            }
+        }
+    }
+
+    private void checkServerNotifications() {
+        int driverId = DataUtils.getUserId(this);
+        new RequestUtils(this, "api/get_new_notifications/" + driverId, "GET", "", callbackGetNewNotifications).execute();
     }
 }

@@ -11,7 +11,7 @@ public class DataUtils {
 
     // --- Усталость
     public static final long FATIGUE_BLINK_DURATION_MS = 2000;
-    public static final float FATIGUE_HEAD_TILT_DEGREES = 40f;
+    public static final float FATIGUE_HEAD_TILT_DEGREES = 25f;
     public static final long FATIGUE_HEAD_TILT_DURATION_MS = 3000;
 
 

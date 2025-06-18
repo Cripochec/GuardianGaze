@@ -1,0 +1,15 @@
+Classification Report:
+              precision    recall  f1-score   support
+
+      Normal     0.0000    0.0000    0.0000        10
+     Yawning     0.4706    0.6667    0.5517        12
+     Talking     0.4375    0.6364    0.5185        11
+
+    accuracy                         0.4545        33
+   macro avg     0.3027    0.4343    0.3567        33
+weighted avg     0.3170    0.4545    0.3735        33
+
+Confusion Matrix:
+[[0 5 5]
+ [0 8 4]
+ [0 4 7]]

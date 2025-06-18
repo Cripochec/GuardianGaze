@@ -162,12 +162,12 @@ public class LoginActivity extends AppCompatActivity {
             // ~ - ошибка сервера
             if (status == 0){
                 DataUtils.saveUserId(this, jsonObject.getInt("driver_id")); // Сохраняем ID пользователя
-                DataUtils.saveEntry(this, false); // Сохраняем информацию о входе
 
                 // Запускаем активити MainActivity.java
-                Intent intent = new Intent(LoginActivity.this, MainActivity.class);
+                Intent intent = new Intent(LoginActivity.this, IntroActivity.class);
                 startActivity(intent);
                 finish();
+
             }
 
             else if (status == 1){

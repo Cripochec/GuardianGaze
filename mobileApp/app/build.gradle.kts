@@ -48,6 +48,11 @@ dependencies {
     // cardview для закругления объектов
     implementation("androidx.cardview:cardview:1.0.0")
 
+    // taptargetview и AppIntro для туториала использования приложения
+    implementation("com.getkeepsafe.taptargetview:taptargetview:1.13.3")
+    implementation("com.github.AppIntro:AppIntro:6.2.0")
+
+
     implementation(libs.appcompat)
     implementation(libs.material)
     implementation("com.airbnb.android:lottie:6.3.0")

@@ -63,4 +63,24 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // =========================
+  // БЛОК: WebSocket для уведомлений
+  // =========================
+  let wsProto = window.location.protocol === "https:" ? "wss" : "ws";
+  let wsUrl = wsProto + "://" + window.location.host + "/ws_notify";
+  let notifySocket = new WebSocket(wsUrl);
+
+  notifySocket.onmessage = function(event) {
+    // Можно парсить event.data и обновлять только блок уведомлений,
+    // но для простоты просто перезагрузим страницу:
+    location.reload();
+  };
+
+  notifySocket.onclose = function() {
+    // Попробовать переподключиться через 5 секунд
+    setTimeout(() => {
+      notifySocket = new WebSocket(wsUrl);
+    }, 5000);
+  };
+
 });

@@ -1,0 +1,64 @@
+D:\Project\BarrierGateAI\server\.venv\Scripts\python.exe D:\Project\GuardianGaze\server\ML\fatigue-detection-yawdd\src\test.py
+Epoch 1: TrainLoss=27.9757 ValLoss=1.8649 ValAcc=0.2456
+Epoch 2: TrainLoss=25.9465 ValLoss=1.7619 ValAcc=0.2807
+Epoch 3: TrainLoss=23.2955 ValLoss=1.5130 ValAcc=0.5088
+Epoch 4: TrainLoss=18.8152 ValLoss=1.3187 ValAcc=0.5614
+Epoch 5: TrainLoss=17.1318 ValLoss=1.4478 ValAcc=0.4561
+Epoch 6: TrainLoss=18.5720 ValLoss=1.1770 ValAcc=0.6667
+Epoch 7: TrainLoss=16.0253 ValLoss=0.8911 ValAcc=0.7368
+Epoch 8: TrainLoss=14.3476 ValLoss=1.0089 ValAcc=0.5965
+Epoch 9: TrainLoss=16.1311 ValLoss=1.2864 ValAcc=0.5088
+Epoch 10: TrainLoss=12.2895 ValLoss=1.2582 ValAcc=0.5439
+Epoch 11: TrainLoss=11.4793 ValLoss=0.7610 ValAcc=0.7018
+Epoch 12: TrainLoss=11.8005 ValLoss=0.8256 ValAcc=0.7018
+Epoch 13: TrainLoss=14.3254 ValLoss=1.0706 ValAcc=0.5439
+Epoch 14: TrainLoss=11.9447 ValLoss=1.3505 ValAcc=0.4912
+Epoch 15: TrainLoss=11.6824 ValLoss=0.9633 ValAcc=0.7368
+Epoch 16: TrainLoss=9.7514 ValLoss=0.9979 ValAcc=0.6140
+Epoch 17: TrainLoss=10.9061 ValLoss=0.7652 ValAcc=0.7719
+Epoch 18: TrainLoss=11.9644 ValLoss=0.7179 ValAcc=0.7719
+Epoch 19: TrainLoss=8.9641 ValLoss=0.8582 ValAcc=0.7368
+Epoch 20: TrainLoss=12.1910 ValLoss=1.6704 ValAcc=0.4561
+Epoch 21: TrainLoss=12.7551 ValLoss=0.9404 ValAcc=0.6491
+Epoch 22: TrainLoss=9.6433 ValLoss=0.9042 ValAcc=0.6667
+Epoch 23: TrainLoss=8.0067 ValLoss=0.7997 ValAcc=0.7193
+Epoch 24: TrainLoss=7.6955 ValLoss=0.8411 ValAcc=0.7018
+Epoch 25: TrainLoss=10.5453 ValLoss=0.8269 ValAcc=0.7193
+Epoch 26: TrainLoss=12.5442 ValLoss=1.7479 ValAcc=0.4737
+Epoch 27: TrainLoss=13.5464 ValLoss=0.9848 ValAcc=0.6491
+Epoch 28: TrainLoss=10.3057 ValLoss=0.6833 ValAcc=0.8070
+Epoch 29: TrainLoss=11.8526 ValLoss=0.7665 ValAcc=0.7193
+Epoch 30: TrainLoss=9.6592 ValLoss=1.1204 ValAcc=0.6491
+Epoch 31: TrainLoss=10.0371 ValLoss=0.8252 ValAcc=0.6842
+Epoch 32: TrainLoss=7.6122 ValLoss=0.6860 ValAcc=0.7719
+Epoch 33: TrainLoss=8.0499 ValLoss=0.8632 ValAcc=0.7544
+Epoch 34: TrainLoss=8.3112 ValLoss=0.5683 ValAcc=0.7544
+Epoch 35: TrainLoss=9.2385 ValLoss=0.6297 ValAcc=0.7544
+Epoch 36: TrainLoss=11.5854 ValLoss=0.9207 ValAcc=0.7193
+Epoch 37: TrainLoss=9.8379 ValLoss=0.8128 ValAcc=0.6667
+Epoch 38: TrainLoss=10.1737 ValLoss=1.1146 ValAcc=0.5965
+Epoch 39: TrainLoss=10.3181 ValLoss=1.3772 ValAcc=0.5263
+Epoch 40: TrainLoss=10.2899 ValLoss=0.8690 ValAcc=0.6667
+Epoch 41: TrainLoss=8.2317 ValLoss=0.8560 ValAcc=0.7719
+Epoch 42: TrainLoss=8.1654 ValLoss=0.6454 ValAcc=0.8596
+Epoch 43: TrainLoss=9.6164 ValLoss=0.6526 ValAcc=0.8246
+Epoch 44: TrainLoss=7.4347 ValLoss=0.8880 ValAcc=0.7368
+Early stopping triggered
+
+Classification Report:
+                   precision    recall  f1-score   support
+
+frequent_blinking       0.60      0.38      0.46         8
+   gaze_deviation       0.92      0.92      0.92        13
+    heavy_eyelids       0.56      0.83      0.67         6
+    long_blinking       0.43      0.75      0.55         4
+       microsleep       0.69      1.00      0.82         9
+           normal       1.00      0.40      0.57        10
+          yawning       1.00      0.86      0.92         7
+
+         accuracy                           0.74        57
+        macro avg       0.74      0.73      0.70        57
+     weighted avg       0.79      0.74      0.73        57
+
+
+Process finished with exit code 0

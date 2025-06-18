@@ -16,6 +16,10 @@
 <body class="driver_profile">
   <div class="container mt-4">
     <a href="{{ url_for('main') }}" class="btn btn-secondary mb-3">← Назад</a>
+    <a href="{{ url_for('video_feed_page', driver_id=driver.id) }}" class="btn btn-primary mb-3 float-end">
+Смотреть поток с телефона</a>
+      
+    
 
     <div class="content-box">
       <h2>{{ driver.first_name }} {{ driver.last_name }}</h2>
@@ -58,6 +62,8 @@
         <div class="text-muted">Нет уведомлений</div>
       {% endif %}
     </div>
+
+    
   </div>
   <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>

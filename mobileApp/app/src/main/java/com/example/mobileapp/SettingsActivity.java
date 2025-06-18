@@ -22,8 +22,11 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AppCompatDelegate;
 import androidx.constraintlayout.widget.ConstraintLayout;
 
+import com.example.mobileapp.utils.DataUtils;
 import com.example.mobileapp.utils.RequestUtils;
 import com.example.mobileapp.utils.ToastUtils;
+import com.getkeepsafe.taptargetview.TapTarget;
+import com.getkeepsafe.taptargetview.TapTargetView;
 import com.google.android.material.bottomsheet.BottomSheetDialog;
 
 import org.json.JSONException;
@@ -34,6 +37,8 @@ public class SettingsActivity extends AppCompatActivity {
     private static final int REQUEST_RINGTONE_PICKER = 1;
     private com.airbnb.lottie.LottieAnimationView lottieAnimation;
     private TextView textRingtone;
+    private int currentTutorialStep = 0;
+    private ImageButton buttonBac;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -50,13 +55,18 @@ public class SettingsActivity extends AppCompatActivity {
         Switch switchVibration = findViewById(R.id.switchVibration);
         textRingtone = findViewById(R.id.textRingtone);
         Switch switchDarkMode = findViewById(R.id.switchDarkMode);
-        ImageButton buttonBac = findViewById(R.id.buttonBac);
+        buttonBac = findViewById(R.id.buttonBac);
         ConstraintLayout outPanel = findViewById(R.id.out_panel);
         ConstraintLayout supportPanel = findViewById(R.id.support_panel);
         ConstraintLayout cameraPanel = findViewById(R.id.camera_panel);
         ConstraintLayout mlPanel = findViewById(R.id.ml_panel);
         SeekBar seekBarVolumeLevel = findViewById(R.id.seekBarVolumeLevel);
         TextView textVolumeLevel = findViewById(R.id.textVolumeLevel);
+
+        // Туториал по использованию приложения
+        if (getEntry(this)) {
+            startTutorial();
+        }
 
         buttonBac.setOnClickListener(v -> finish());
 
@@ -226,10 +236,10 @@ public class SettingsActivity extends AppCompatActivity {
 
         buttonHelp.setOnClickListener(v -> {
             new AlertDialog.Builder(this)
-                    .setTitle("Что такое функции достува нейронных сетей.")
+                    .setTitle("Что такое функции достуgа нейронных сетей.")
                     .setMessage("Включая функцию, вы разрешаете нейронной сети запускаться и работать на вашем телефоне " +
                             "вне зависимости от доступа в интернет. Если функция отключена то нейронные сети включаются на " +
-                            "телефоне тоько тогда, когда у вас пропадает связь с интернетом или связь очень плохого качества")
+                            "телефоне только тогда, когда у вас пропадает связь с интернетом или связь очень плохого качества")
                     .setPositiveButton("OK", null)
                     .show();
         });
@@ -272,5 +282,109 @@ public class SettingsActivity extends AppCompatActivity {
 
     private void showToast(String message) {
         this.runOnUiThread(() -> ToastUtils.showShortToast(this, message));
+    }
+
+    private void startTutorial() {
+        showTutorialStep(currentTutorialStep);
+    }
+
+    private void showTutorialStep(int step) {
+        switch (step) {
+            case 0:
+                highlightNotificationSettings();
+                break;
+            case 1:
+                highlightDarkMode();
+                break;
+            case 2:
+                highlightCameraPanel();
+                break;
+            case 3:
+                highlightMlPanel();
+                break;
+            default:
+                completeTutorial();
+        }
+    }
+
+    private void highlightNotificationSettings() {
+        View target = findViewById(R.id.textVolume2); // Используем любой элемент из блока
+
+        TapTargetView.showFor(this,
+                TapTarget.forView(target,
+                                "Настройки уведомлений",
+                                "Здесь вы можете настроить звук, громкость и вибрацию для уведомлений")
+                        .outerCircleColor(R.color.teal_700)
+                        .titleTextSize(20)
+                        .descriptionTextSize(16)
+                        .drawShadow(true)
+                        .cancelable(false),
+                new TapTargetView.Listener() {
+                    @Override
+                    public void onTargetClick(TapTargetView view) {
+                        super.onTargetClick(view);
+                        currentTutorialStep++;
+                        showTutorialStep(currentTutorialStep);
+                    }
+                });
+    }
+
+    private void highlightDarkMode() {
+        TapTargetView.showFor(this,
+                TapTarget.forView(findViewById(R.id.darkModeTutor),
+                                "Темная тема",
+                                "Включите для комфортной работы ночью")
+                        .outerCircleColor(R.color.purple_500)
+                        .titleTextSize(20)
+                        .descriptionTextSize(16),
+                new TapTargetView.Listener() {
+                    @Override
+                    public void onTargetClick(TapTargetView view) {
+                        super.onTargetClick(view);
+                        currentTutorialStep++;
+                        showTutorialStep(currentTutorialStep);
+                    }
+                });
+    }
+
+    private void highlightCameraPanel() {
+        TapTargetView.showFor(this,
+                TapTarget.forView(findViewById(R.id.settingsCameraTutor),
+                                "Настройка камеры",
+                                "Тут можно настроить камеру телефона для коректного определения усталости")
+                        .outerCircleColor(R.color.purple_200)
+                        .titleTextSize(20)
+                        .descriptionTextSize(16),
+                new TapTargetView.Listener() {
+                    @Override
+                    public void onTargetClick(TapTargetView view) {
+                        super.onTargetClick(view);
+                        currentTutorialStep++;
+                        showTutorialStep(currentTutorialStep);
+                    }
+                });
+    }
+
+    private void highlightMlPanel() {
+        TapTargetView.showFor(this,
+                TapTarget.forView(findViewById(R.id.settingsMLTutor),
+                                "Настройка ейронной сети",
+                                "Тут можно включить постоянную оброботку усталости у вас на телефоне, что хорошо скажется на быстроте уведомлений и отказоустойчивости")
+                        .outerCircleColor(R.color.custom_yellow)
+                        .titleTextSize(20)
+                        .descriptionTextSize(16),
+                new TapTargetView.Listener() {
+                    @Override
+                    public void onTargetClick(TapTargetView view) {
+                        super.onTargetClick(view);
+                        currentTutorialStep++;
+                        showTutorialStep(currentTutorialStep);
+                    }
+                });
+    }
+
+    private void completeTutorial() {
+        DataUtils.saveEntry(this, false); // Сохраняем информацию о входе
+        buttonBac.callOnClick();
     }
 }

@@ -17,11 +17,6 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-
-
-
-
-
     <!-- Кнопка настроек -->
     <ImageButton
         android:id="@+id/buttonSettings"
@@ -46,10 +41,6 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="@+id/buttonSettings" />
-
-
-
-
 
     <!-- Кнопка для управления CardView -->
     <ImageButton

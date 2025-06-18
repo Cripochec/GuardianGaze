@@ -4,13 +4,7 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.PointF;
 import android.graphics.RectF;
-import android.util.Log;
-import android.widget.Toast;
 
-import androidx.annotation.NonNull;
-
-import com.google.android.gms.tasks.OnFailureListener;
-import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.mlkit.vision.common.InputImage;
 import com.google.mlkit.vision.face.Face;
 import com.google.mlkit.vision.face.FaceLandmark;
@@ -22,22 +16,16 @@ import java.util.Collections;
 import java.util.List;
 
 public class FaceDetectionProcessor {
-
-    public interface Callback {
-        void onResult(List<RectF> faceRects, List<PointF> eyes, List<Boolean> eyesOpen);
-    }
-
-    private final FaceDetector detector;
     private final Context context;
+    private final FaceDetector detector;
+    private static float lastLeftEyeOpenProbability = 0.5f; // по умолчанию
 
-    private static float lastLeftEyeOpenProbability = 0.8f; // по умолчанию открытый глаз
-
-    public FaceDetectionProcessor(Context ctx) {
-        this.context = ctx;
+    public FaceDetectionProcessor(Context context) {
+        this.context = context;
         FaceDetectorOptions opts = new FaceDetectorOptions.Builder()
                 .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
                 .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_ALL)
-                .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_ALL) // Важно!
+                .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_ALL)
                 .build();
         detector = com.google.mlkit.vision.face.FaceDetection.getClient(opts);
     }
@@ -57,8 +45,7 @@ public class FaceDetectionProcessor {
 
                     float openCalibrated = DataUtils.getCalibratedOpen(context);
                     float closedCalibrated = DataUtils.getCalibratedClosed(context);
-                    float seekValue = DataUtils.getCalibratedClosed(context); // от 0.0 до 1.0
-                    float threshold = closedCalibrated + (openCalibrated - closedCalibrated) * seekValue;
+                    float threshold = closedCalibrated;
 
                     for (Face face : faces) {
                         faceRects.add(new RectF(face.getBoundingBox()));
@@ -67,7 +54,7 @@ public class FaceDetectionProcessor {
                         FaceLandmark rightEye = face.getLandmark(FaceLandmark.RIGHT_EYE);
 
                         if (leftEye != null) {
-                            eyes.add(leftEye.getPosition());
+                            eyes.add(leftEye.getPosition()); // <-- добавляем позицию левого глаза
                             Float open = face.getLeftEyeOpenProbability();
                             if (open != null) lastLeftEyeOpenProbability = open;
                             eyesOpen.add(open != null && open > threshold);
@@ -83,4 +70,7 @@ public class FaceDetectionProcessor {
                 .addOnFailureListener(e -> cb.onResult(Collections.emptyList(), Collections.emptyList(), Collections.emptyList()));
     }
 
+    public interface Callback {
+        void onResult(List<RectF> faceRects, List<PointF> eyes, List<Boolean> eyesOpen);
+    }
 }

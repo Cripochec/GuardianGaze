@@ -15,9 +15,9 @@
               "state": {
                 "file": "main/Схема.canvas",
                 "viewState": {
-                  "x": -4.540843178579024,
-                  "y": -153.364829120812,
-                  "zoom": -0.6666666666666665
+                  "x": -831.2976314968462,
+                  "y": 122.12320925101085,
+                  "zoom": -1.3333333333333333
                 }
               },
               "icon": "lucide-layout-dashboard",
@@ -81,7 +81,7 @@
       }
     ],
     "direction": "horizontal",
-    "width": 300
+    "width": 200
   },
   "right": {
     "id": "1cba97ae0ce6689c",

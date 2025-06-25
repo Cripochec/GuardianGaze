@@ -7,7 +7,7 @@ import android.net.Uri;
 public class DataUtils {
 
     // --- IP сервера
-    public static final String IP = "192.168.0.54:8000";
+    public static final String IP = "192.168.43.199:8000";
 
     // --- Усталость
     public static final long FATIGUE_BLINK_DURATION_MS = 2000;

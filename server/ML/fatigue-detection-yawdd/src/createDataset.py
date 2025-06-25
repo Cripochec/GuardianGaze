@@ -6,6 +6,9 @@ import time
 import csv
 from datetime import datetime
 
+# URL камеры (замените на свой IP и порт)
+url = "http://192.168.3.13:8080/video"  # для IP Webcam
+
 # === Настройки ===
 SAVE_DIR = "../data/fatigue_dataset"
 LABEL_FILE = os.path.join(SAVE_DIR, "labels.csv")
@@ -14,9 +17,7 @@ RECORD_DURATION = 5  # в секундах
 LABEL_KEYS = {
     ord('q'): "yawning",
     ord('w'): "normal",
-    ord('e'): "heavy_eyelids",
     ord('r'): "frequent_blinking",
-    ord('t'): "long_blinking",
     ord('y'): "gaze_deviation",
     ord('u'): "microsleep",
 }
@@ -60,6 +61,7 @@ def get_label_stats():
 
 # === Основной цикл ===
 def main():
+    # cap = cv2.VideoCapture(url)
     cap = cv2.VideoCapture(1)
 
     print("Нажмите клавишу для начала записи:")

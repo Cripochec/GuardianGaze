@@ -23,6 +23,9 @@ from modules import generate_credentials
 from settings import EMAILS_SUPPORT
 from smtp import send_email
 
+import queue
+from threading import Thread
+
 app = Flask(__name__)
 CORS(app, supports_credentials=True, resources={r"/*": {"origins": "*"}})
 app.secret_key = 'supersecret'
@@ -30,27 +33,42 @@ sock = Sock(app)
 latest_frames = {}
 client_params = {}
 notify_clients = set()
+frame_queues = {} 
 
-# Файл для хранения новых уведомлений
 DATA_FILE = "static/json_data_message.json"
 
-# Для расчёта FPS каждого пользователя
-user_fps_state = {}
-
-# === Загрузка обученной модели один раз при старте
-model = CNNLSTM(input_size=136, num_classes=5)  # 68 точек * 2 (x, y)
-model.load_state_dict(torch.load("ML/fatigue-detection-yawdd/src/best_model.pt", map_location="cpu"))
+# Загрузка обученной модели при старте
+model = CNNLSTM(input_size=136, num_classes=5).to("cuda")
+model.load_state_dict(torch.load("ML/fatigue-detection-yawdd/src/best_model.pt", map_location="cuda"))
 model.eval()
 
 label_encoder = joblib.load("ML/fatigue-detection-yawdd/src/label_encoder.joblib")
 
-# Функция отчисти всез уведомлений
 def schedule_notifications_cleanup():
+    # Периодическая очистка уведомлений
     while True:
         clear_all_notifications()
-        time.sleep(12 * 60 * 60)  # 12 часов = 43200 секунд
+        time.sleep(12 * 60 * 60)
 
-# WebSocket
+def start_worker(user_id, thresholds):
+    # Запуск потока обработки кадров для user_id
+    if user_id in frame_queues:
+        return
+    q = queue.Queue(maxsize=1)
+    frame_queues[user_id] = q
+
+    def worker():
+        while True:
+            try:
+                frame = q.get(timeout=10)
+                process_frame_for_fatigue(frame, user_id, thresholds, model, label_encoder)
+            except queue.Empty:
+                break
+
+    t = Thread(target=worker, daemon=True)
+    t.start()
+
+# WebSocket для уведомлений
 @sock.route('/ws_notify')
 def ws_notify(ws):
     notify_clients.add(ws)
@@ -73,18 +91,18 @@ def broadcast_notification(data):
     for ws in dead:
         notify_clients.discard(ws)
 
-
-# WebSite
+# Веб-интерфейс
 @app.route("/")
 def index():
     if not session.get("user"):
         return redirect(url_for("login"))
+    if not session.get("agreement_accepted"):
+        return redirect(url_for("user_agreement"))
     return redirect(url_for("main"))
 
 @app.route('/favicon.ico')
 def favicon():
     return redirect(url_for('static', filename='images/lock.ico'))
-
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -92,37 +110,49 @@ def login():
     if request.method == "POST":
         login = request.form.get("login")
         password = request.form.get("password")
-
-        # Проверка логина и пароля по базе
         admins = get_all_admins()
         for admin in admins:
             if admin[1] == login and admin[2] == password:
                 session["user"] = login
                 session["admin_id"] = admin[0]
-                return redirect(url_for("main"))
+                session.pop("agreement_accepted", None)  
+                return redirect(url_for("user_agreement")) 
         error = "Неверный логин или пароль"
     return render_template("login.html", error=error)
 
+@app.route("/user_agreement", methods=["GET", "POST"])
+def user_agreement():
+    if not session.get("user"):
+        return redirect(url_for("login"))
+    error = None
+    agreement_path = os.path.join(app.root_path, "static", "user_agreement.txt")
+    with open(agreement_path, encoding="utf-8") as f:
+        agreement_text = f.read()
+    if request.method == "POST":
+        choice = request.form.get("agreement")
+        if choice == "yes":
+            session["agreement_accepted"] = True
+            return redirect(url_for("main"))
+        else:
+            error = "Вы должны принять пользовательское соглашение для продолжения."
+    return render_template("user_agreement.html", agreement_text=agreement_text, error=error)
 
 @app.route('/main')
 def main():
     if 'user' not in session:
         return redirect('/login')
-
+    if not session.get("agreement_accepted"):
+        return redirect(url_for("user_agreement"))
     admin_id = session.get("admin_id")
     drivers = get_drivers_by_admin(admin_id)
-
     notifications_map = {
         driver.id: get_unread_notifications(driver.id)
         for driver in drivers
     }
-
-    # Сортируем: сначала те, у кого есть уведомления
     sorted_drivers = sorted(
         drivers,
         key=lambda d: len(notifications_map.get(d.id, [])) == 0
     )
-
     return render_template(
         "main.html",
         user=session.get("user"),
@@ -131,7 +161,6 @@ def main():
         notifications_map=notifications_map
     )
 
-
 @app.route('/accounts')
 def accounts():
     if session.get("admin_id") != 1:
@@ -139,22 +168,16 @@ def accounts():
     admins = get_all_admins()
     return render_template("accounts.html", user=session.get("user"), admins=admins)
 
-
 @app.route('/driver/<int:driver_id>')
 def driver_profile(driver_id):
     if 'user' not in session:
         return redirect('/login')
-
-    # Получаем данные водителя
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT * FROM drivers WHERE id = %s", (driver_id,))
             driver = cur.fetchone()
-
     if not driver:
         return "Водитель не найден", 404
-
-    # Получаем все уведомления
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("""
@@ -164,16 +187,12 @@ def driver_profile(driver_id):
                 ORDER BY time DESC
             """, (driver_id,))
             notifications = cur.fetchall()
-
-    # Помечаем непрочитанные как прочитанные
     mark_notifications_as_read(driver_id)
-
     return render_template(
         "driver_profile.html",
         driver=driver,
         notifications=notifications
     )
-
 
 @app.route("/logout")
 def logout():
@@ -222,19 +241,13 @@ def add_drivers():
     email = request.form["email"]
     age = int(request.form["age"])
     truck = request.form["truck"]
-
-
-    id_drivers = add_driver(login, password, first_name, last_name, phone, email, age, truck)
     admin_id = int(session.get("admin_id"))
-
-    add_admin_driver_relation(admin_id, id_drivers)
-
-    # send_sms_ru(phone, login, password)
-
+    add_driver(login, password, first_name, last_name, phone, email, age, truck, admin_id)
     email_thread = threading.Thread(target=send_email, args=(email, "Guardian Gaze, Данные для входа", f"логин: {str(login)}\nпароль: {password}"))
     email_thread.start()
-
     return redirect(url_for("main"))
+
+# отсюда продолжаю делать
 
 @app.route('/edit_driver/<int:driver_id>', methods=['POST'])
 def edit_driver(driver_id):
@@ -246,41 +259,40 @@ def edit_driver(driver_id):
     email = request.form.get('email')
     age = request.form.get('age')
     truck = request.form.get('truck')
-    update_driver(driver_id, first_name=first_name, last_name=last_name, phone=phone, email=email, age=age, truck=truck)
+
+    assigned_admin_id = get_admin_by_driver(driver_id)
+    # if !assigned_admin_id:
+    #     return
+
+    update_driver(driver_id, first_name=first_name, last_name=last_name, phone=phone, email=email, age=age, truck=truck, assigned_admin_id=assigned_admin_id)
     return redirect(url_for('main'))
 
 @app.route('/delete_driver/<int:driver_id>', methods=['POST'])
 def delete_driver(driver_id):
     if 'user' not in session:
         return redirect(url_for('login'))
-
     admin_id = int(session.get("admin_id"))   
-    delete_admin_driver_relation(admin_id, driver_id) 
+    # delete_admin_driver_relation(admin_id, driver_id)
     delete_driver_db(driver_id)
     return redirect(url_for('main'))
 
-
-# PhoneApplication
+# Работа с уведомлениями (JSON)
 def load_data() -> List[Dict[str, Union[int, str]]]:
-    """Загружает данные из файла JSON"""
     try:
         if not os.path.exists(DATA_FILE):
-            # Создаем файл с пустым списком, если его нет
             with open(DATA_FILE, 'w', encoding='utf-8') as f:
                 json.dump([], f)
             return []
-
         with open(DATA_FILE, 'r', encoding='utf-8') as f:
             data = json.load(f)
-            if not isinstance(data, list):  # Проверяем, что данные - это список
+            if not isinstance(data, list):
                 raise json.JSONDecodeError("Invalid JSON format", doc=DATA_FILE, pos=0)
             return data
     except (json.JSONDecodeError, IOError) as e:
         print(f"Ошибка загрузки данных: {e}")
-        return []  # Всегда возвращаем список, даже при ошибке
+        return []
 
 def save_data(data: List[Dict[str, Union[int, str]]]) -> None:
-    """Сохраняет данные в файл JSON"""
     try:
         with open(DATA_FILE, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
@@ -288,14 +300,12 @@ def save_data(data: List[Dict[str, Union[int, str]]]) -> None:
         print(f"Ошибка сохранения данных: {e}")
 
 def get_messages_by_id(id: int, importance_filter: Optional[str] = None) -> List[Dict[str, Union[int, str]]]:
-    """Возвращает сообщения по ID с фильтром важности"""
     data = load_data()
     if importance_filter:
         return [item for item in data if item["id"] == id and item["importance"] == importance_filter]
     return [item for item in data if item["id"] == id]
 
 def delete_messages_by_id(id: int, importance_filter: Optional[str] = None) -> None:
-    """Удаляет сообщения по ID с фильтром важности"""
     data = load_data()
     if importance_filter:
         new_data = [item for item in data if not (item["id"] == id and item["importance"] == importance_filter)]
@@ -332,11 +342,9 @@ def support_message():
         data = request.get_json()
         text = data['text']
         driver_id = data['driver_id']
-
         email_thread = threading.Thread(target=send_email, args=(
             EMAILS_SUPPORT, "Сообщение поддержки Guardian Gaze", f"ID водителя: {driver_id}\nСообщение: {text}"))
         email_thread.start()
-
         return jsonify({"status": 0})
     except Exception as e:
         print(f"ERROR: {e}")
@@ -349,9 +357,7 @@ def send_notification():
         message = data['message']
         driver_id = data['driver_id']
         importance = get_importance(message)
-
         if add_notification(message, importance, driver_id):
-            # Рассылаем уведомление всем клиентам
             broadcast_notification({
                 "driver_id": driver_id,
                 "message": message,
@@ -360,7 +366,6 @@ def send_notification():
             return jsonify({"status": 0})
         else:
             return jsonify({"status": 1})
-
     except Exception as e:
         print(f"ERROR: {e}")
         return jsonify({"status": 2})
@@ -371,18 +376,12 @@ def send_notification_list():
         data = request.get_json()
         driver_id = data['driver_id']
         message_list = data['message_list']
-
-        # 🛠️ Если message_list — строка (например: '["сообщение1", "сообщение2"]')
         if isinstance(message_list, str):
             try:
                 message_list = ast.literal_eval(message_list)
             except Exception as e:
                 print("Ошибка преобразования строки в список:", e)
                 return jsonify({"status": 2, "error": "Некорректный формат message_list"})
-
-        print(driver_id)
-        print(message_list)
-
         success = True
         for message in message_list:
             importance = get_importance(message)
@@ -394,9 +393,7 @@ def send_notification_list():
                     "message": message,
                     "importance": importance
                 })
-
         return jsonify({"status": 0 if success else 1})
-
     except Exception as e:
         print(f"ERROR: {e}")
         return jsonify({"status": 2})
@@ -406,38 +403,26 @@ def get_new_notifications(driver_id):
     try:
         notifications = get_messages_by_id(driver_id)
         delete_messages_by_id(driver_id)
-        # Возвращаем список уведомлений в ответе
         return jsonify({"status": 0, "notifications": notifications})
     except Exception as e:
         print(e)
         return jsonify({"status": 1})
 
-
-# MLDetection
+# Страница видеопотока
 @app.route("/video_feed/<int:driver_id>")
 def video_feed_page(driver_id):
     return render_template("video_feed.html", driver_id=driver_id)
 
+# MJPEG-поток для видеостраницы
 @app.route("/video_stream/<int:driver_id>")
 def video_stream(driver_id):
     def generate():
         prev_time = time.time()
-        if driver_id not in user_fps_state:
-            user_fps_state[driver_id] = deque(maxlen=10)
         while True:
             frame = latest_frames.get(driver_id)
             if frame is not None:
                 current_time = time.time()
-                delta = current_time - prev_time
                 prev_time = current_time
-                if delta > 0:
-                    user_fps_state[driver_id].append(1.0 / delta)
-                fps = sum(user_fps_state[driver_id]) / len(user_fps_state[driver_id]) if user_fps_state[driver_id] else 0.0
-                text = f"FPS: {fps:.1f}"
-                cv2.putText(
-                    frame, text, (10, 30),
-                    cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 0), 2, cv2.LINE_AA
-                )
                 _, jpeg = cv2.imencode('.jpg', frame)
                 frame_bytes = jpeg.tobytes()
                 yield (b'--frame\r\n'
@@ -446,13 +431,9 @@ def video_stream(driver_id):
                 time.sleep(0.01)
     return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
-
+# WebSocket для получения кадров от мобильного приложения
 @sock.route('/ws')
 def ws_handler(ws):
-    """
-    Первое сообщение — JSON с user_id, open, closed.
-    Далее — бинарные кадры.
-    """
     user_id = None
     try:
         # Получаем параметры от клиента
@@ -468,7 +449,6 @@ def ws_handler(ws):
             print("Ожидался JSON с параметрами, получено:", raw)
             ws.close()
             return
-
         # Основной цикл приёма бинарных JPEG-кадров
         while True:
             data = ws.receive()
@@ -477,21 +457,23 @@ def ws_handler(ws):
             if isinstance(data, str):
                 print(f"[user_id={user_id}] Получено текстовое сообщение во время передачи кадров — пропущено.")
                 continue
-
-            # Декодируем JPEG
             np_array = np.frombuffer(data, np.uint8)
             frame = cv2.imdecode(np_array, cv2.IMREAD_COLOR)
-
-            # 🔁 Поворот кадра сразу здесь
             if frame is not None:
                 frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
                 latest_frames[user_id] = frame
-
-                # Обработка усталости
                 thresholds = client_params.get(user_id)
                 if thresholds:
-                    process_frame_for_fatigue(frame, user_id, thresholds, model, label_encoder)
-
+                    start_worker(user_id, thresholds)
+                    q = frame_queues[user_id]
+                    if not q.full():
+                        q.put(frame)
+                    else:
+                        try:
+                            q.get_nowait()
+                            q.put_nowait(frame)
+                        except queue.Full:
+                            pass
     except Exception as e:
         print(f"[user_id={user_id}] Ошибка: {e}")
     finally:
@@ -499,33 +481,16 @@ def ws_handler(ws):
             del latest_frames[user_id]
         if user_id in client_params:
             del client_params[user_id]
-
-
-
-
-
+        if user_id in frame_queues:
+            del frame_queues[user_id]
 
 if __name__ == '__main__':
-    # create_database()
-    # add_admin('admin1', 'admin1')
+    create_database()
+    init_reference_data()
 
-
-
-    # test_driver_id = 10  # замените на реальный ID водителя в вашей БД
-    # test_message = "Водитель проявляет признаки усталостиs"
-    # test_importance = "высокая"
-    #
-    # try:
-    #     add_notification(test_message, test_importance, test_driver_id)
-    #     print("✅ Уведомление успешно добавлено!")
-    # except Exception as e:
-    #     print("❌ Ошибка при добавлении уведомления:", e)
-
-    # Запуск потока для очистки уведомлений
     clear_all_notifications()
     cleanup_thread = threading.Thread(target=schedule_notifications_cleanup, daemon=True)
     cleanup_thread.start()
-
     app.run(host='0.0.0.0', port=8000, debug=True)
 
 

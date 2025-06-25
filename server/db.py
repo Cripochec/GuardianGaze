@@ -7,8 +7,7 @@ from psycopg2.extras import NamedTupleCursor
 
 from settings import DB_HOST, DB_DATABASE, DB_USER, DB_PASSWORD
 
-
-# Безопасное подключение к БД
+# Получение подключения к базе данных
 def get_connection():
     return psycopg2.connect(
         host=DB_HOST,
@@ -18,42 +17,45 @@ def get_connection():
         cursor_factory=NamedTupleCursor
     )
 
-# ------------------ СОЗДАНИЕ ТАБЛИЦ ------------------
-
+# Создание всех необходимых таблиц и главного админа
 def create_database():
     table_sql = """
-    CREATE TABLE IF NOT EXISTS admins (
-        id SERIAL PRIMARY KEY,
-        login VARCHAR(100) UNIQUE NOT NULL,
-        password VARCHAR(100) NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS drivers (
+    CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
         login VARCHAR(100) UNIQUE NOT NULL,
         password VARCHAR(100) NOT NULL,
+        role VARCHAR(20) CHECK (role IN ('admin', 'driver')) NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS drivers (
+        id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
         first_name VARCHAR(100),
         last_name VARCHAR(100),
         phone VARCHAR(20),
         email VARCHAR(100),
         age INTEGER,
-        truck VARCHAR(100)
-    );
-    
-    CREATE TABLE IF NOT EXISTS notifications (
-    id SERIAL PRIMARY KEY,
-    message TEXT NOT NULL,
-    time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    importance VARCHAR(10) CHECK (importance IN ('высокая', 'средняя', 'низкая')),
-    id_driver INTEGER REFERENCES drivers(id),
-    is_read BOOLEAN DEFAULT FALSE
+        truck VARCHAR(100),
+        assigned_admin_id INTEGER REFERENCES users(id) ON DELETE SET NULL
     );
 
-    CREATE TABLE IF NOT EXISTS admin_driver_relation (
+    CREATE TABLE IF NOT EXISTS importance_levels (
         id SERIAL PRIMARY KEY,
-        id_admin INTEGER REFERENCES admins(id),
-        id_driver INTEGER REFERENCES drivers(id),
-        UNIQUE (id_admin, id_driver)
+        level VARCHAR(20) UNIQUE NOT NULL CHECK (level IN ('высокая', 'средняя', 'низкая'))
+    );
+
+    CREATE TABLE IF NOT EXISTS message_templates (
+        id SERIAL PRIMARY KEY,
+        code VARCHAR(50) UNIQUE NOT NULL,
+        message TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS notifications (
+        id SERIAL PRIMARY KEY,
+        id_driver INTEGER REFERENCES drivers(id) ON DELETE CASCADE,
+        template_id INTEGER REFERENCES message_templates(id),
+        time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        importance_id INTEGER REFERENCES importance_levels(id),
+        is_read BOOLEAN DEFAULT FALSE
     );
     """
 
@@ -64,92 +66,133 @@ def create_database():
 
         # Создание главного админа, если не существует
         with conn.cursor() as cur:
-            cur.execute("SELECT * FROM admins WHERE login = %s", ('admin',))
+            cur.execute("SELECT id FROM users WHERE login = %s AND role = 'admin'", ('admin',))
             if cur.fetchone() is None:
-                add_admin('admin', 'admin')
+                cur.execute("""
+                    INSERT INTO users (login, password, role)
+                    VALUES (%s, %s, 'admin')
+                """, ('admin', 'admin'))
+                conn.commit()
                 print("Аккаунт главного админа успешно создан")
             else:
                 print("Аккаунт главного админа уже существует")
 
     print("Таблицы успешно созданы.")
 
-# ------------------ АДМИНЫ ------------------
+
+def init_reference_data():
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM importance_levels")
+            if cur.fetchone()[0] == 0:
+                cur.executemany("""
+                    INSERT INTO importance_levels (level) VALUES (%s)
+                """, [('высокая',), ('средняя',), ('низкая',)])
+
+            cur.execute("SELECT COUNT(*) FROM message_templates")
+            if cur.fetchone()[0] == 0:
+                cur.executemany("""
+                    INSERT INTO message_templates (code, message)
+                    VALUES (%s, %s)
+                """, [
+                    ('yawning', "Обнаружено частое зевание"),
+                    ('microsleep', "Обнаружены микро-сны"),
+                    ('frequent_blinking', "Обнаружено частое моргание"),
+                    ('gaze_deviation', "Обнаружено отклонение взгляда"),
+                ])
+        conn.commit()
+
+
+def drop_all_tables():
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                DROP TABLE IF EXISTS notifications CASCADE;
+                DROP TABLE IF EXISTS drivers CASCADE;
+                DROP TABLE IF EXISTS users CASCADE;
+                DROP TABLE IF EXISTS importance_levels CASCADE;
+                DROP TABLE IF EXISTS message_templates CASCADE;
+            """)
+            conn.commit()
+            print("[Очистка] Все таблицы успешно удалены.")
+
+
+# --- Операции с администраторами ---
 
 def add_admin(login, password):
     with get_connection() as conn:
         with conn.cursor() as cur:
-            cur.execute("INSERT INTO admins (login, password) VALUES (%s, %s)", (login, password))
-            conn.commit()
+            cur.execute("""
+                INSERT INTO users (login, password, role)
+                VALUES (%s, %s, 'admin')
+                RETURNING id
+            """, (login, password))
+            return cur.fetchone()[0]
+
 
 def update_admin(admin_id, login, password):
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("""
-                UPDATE admins SET login = %s, password = %s WHERE id = %s
+                UPDATE users SET login = %s, password = %s
+                WHERE id = %s AND role = 'admin'
             """, (login, password, admin_id))
             conn.commit()
+
 
 def delete_admin_by_id(admin_id):
     with get_connection() as conn:
         with conn.cursor() as cur:
-            # Получаем всех водителей, связанных с этим админом
-            cur.execute("SELECT id_driver FROM admin_driver_relation WHERE id_admin = %s", (admin_id,))
-            driver_ids = [row.id_driver for row in cur.fetchall()]
-
-            for driver_id in driver_ids:
-                # Удаляем уведомления водителя
+            # Удаляем всех водителей, закреплённых за этим админом
+            cur.execute("SELECT id FROM drivers WHERE assigned_admin_id = %s", (admin_id,))
+            for row in cur.fetchall():
+                driver_id = row[0]
                 cur.execute("DELETE FROM notifications WHERE id_driver = %s", (driver_id,))
-
-                # Удаляем связи водителя с админами
-                cur.execute("DELETE FROM admin_driver_relation WHERE id_driver = %s", (driver_id,))
-
-                # Удаляем водителя
                 cur.execute("DELETE FROM drivers WHERE id = %s", (driver_id,))
+                cur.execute("DELETE FROM users WHERE id = %s", (driver_id,))
 
-            # Удаляем самого админа
-            cur.execute("DELETE FROM admins WHERE id = %s", (admin_id,))
-
-        conn.commit()
+            cur.execute("DELETE FROM users WHERE id = %s AND role = 'admin'", (admin_id,))
+            conn.commit()
 
 
 def get_all_admins():
     with get_connection() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT * FROM admins")
+            cur.execute("SELECT id, login FROM users WHERE role = 'admin'")
             return cur.fetchall()
 
-# ------------------ ВОДИТЕЛИ ------------------
+def get_admin_by_driver(driver_id):
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT assigned_admin_id FROM drivers WHERE id = %s", (driver_id,))
+            row = cur.fetchone()
+            if row:
+                return cur.fetchall()
+            else:
+                print("get_admin_by_driver, Водитель не найден")
 
-def add_driver(login, password, first_name=None, last_name=None, phone=None, email=None, age=None, truck=None):
+# --- Операции с водителями ---
+
+def add_driver(login, password, first_name=None, last_name=None, phone=None, email=None, age=None, truck=None, assigned_admin_id=None):
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("""
-                INSERT INTO drivers (login, password, first_name, last_name, phone, email, age, truck)
+                INSERT INTO users (login, password, role)
+                VALUES (%s, %s, 'driver') RETURNING id
+            """, (login, password))
+            user_id = cur.fetchone()[0]
+
+            cur.execute("""
+                INSERT INTO drivers (id, first_name, last_name, phone, email, age, truck, assigned_admin_id)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                RETURNING id
-            """, (login, password, first_name, last_name, phone, email, age, truck))
-            driver_id = cur.fetchone()[0]
+            """, (user_id, first_name, last_name, phone, email, age, truck, assigned_admin_id))
             conn.commit()
-            return driver_id
+            return user_id
 
-def delete_driver_db(driver_id):
-    with get_connection() as conn:
-        with conn.cursor() as cur:
-            # Удаляем уведомления водителя
-            cur.execute("DELETE FROM notifications WHERE id_driver = %s", (driver_id,))
-
-            # Удаляем связи водителя с админами
-            cur.execute("DELETE FROM admin_driver_relation WHERE id_driver = %s", (driver_id,))
-
-            # Удаляем самого водителя
-            cur.execute("DELETE FROM drivers WHERE id = %s", (driver_id,))
-
-        conn.commit()
 
 def update_driver(driver_id, **kwargs):
     if not kwargs:
         return
-
     with get_connection() as conn:
         with conn.cursor() as cur:
             fields = ', '.join([f"{key} = %s" for key in kwargs])
@@ -158,14 +201,24 @@ def update_driver(driver_id, **kwargs):
             cur.execute(query, values)
             conn.commit()
 
+
+def delete_driver_db(driver_id):
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM notifications WHERE id_driver = %s", (driver_id,))
+            cur.execute("DELETE FROM drivers WHERE id = %s", (driver_id,))
+            cur.execute("DELETE FROM users WHERE id = %s AND role = 'driver'", (driver_id,))
+            conn.commit()
+
+
 def get_drivers_by_admin(admin_id):
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT d.*
+                SELECT d.*, u.login
                 FROM drivers d
-                INNER JOIN admin_driver_relation adr ON d.id = adr.id_driver
-                WHERE adr.id_admin = %s
+                JOIN users u ON d.id = u.id
+                WHERE d.assigned_admin_id = %s
             """, (admin_id,))
             return cur.fetchall()
 
@@ -174,84 +227,58 @@ def check_driver_credentials(login, password):
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT id FROM drivers
-                WHERE login = %s AND password = %s
+                SELECT id FROM users
+                WHERE login = %s AND password = %s AND role = 'driver'
             """, (login, password))
             result = cur.fetchone()
-
             if result:
                 return {"status": 0, "driver_id": result[0]}
-            else:
-                return {"status": 1}
+            return {"status": 1}
 
-# ------------------ СВЯЗЬ АДМИН-ВОДИТЕЛЬ ------------------
-
-def add_admin_driver_relation(id_admin, id_driver):
-    with get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute("""
-                INSERT INTO admin_driver_relation (id_admin, id_driver)
-                VALUES (%s, %s)
-                ON CONFLICT (id_admin, id_driver) DO NOTHING
-            """, (id_admin, id_driver))
-            conn.commit()
-
-def delete_admin_driver_relation(id_admin, id_driver):
-    with get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute("""
-                DELETE FROM admin_driver_relation
-                WHERE id_admin = %s AND id_driver = %s
-            """, (id_admin, id_driver))
-            conn.commit()
-
-def update_admin_driver_relation(relation_id, id_admin=None, id_driver=None):
-    updates = []
-    values = []
-
-    if id_admin is not None:
-        updates.append("id_admin = %s")
-        values.append(id_admin)
-    if id_driver is not None:
-        updates.append("id_driver = %s")
-        values.append(id_driver)
-
-    if not updates:
-        return
-
-    values.append(relation_id)
-    with get_connection() as conn:
-        with conn.cursor() as cur:
-            query = f"UPDATE admin_driver_relation SET {', '.join(updates)} WHERE id = %s"
-            cur.execute(query, values)
-            conn.commit()
-
-# ------------------ УВЕДОМЛЕНИЯ ------------------
+# --- Операции с уведомлениями ---
 
 def get_unread_notifications(driver_id):
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT message, time, importance
-                FROM notifications
-                WHERE id_driver = %s AND is_read = FALSE
-                ORDER BY time DESC
+                SELECT mt.message, n.time, il.level
+                FROM notifications n
+                JOIN importance_levels il ON n.importance_id = il.id
+                JOIN message_templates mt ON n.template_id = mt.id
+                WHERE n.id_driver = %s AND n.is_read = FALSE
+                ORDER BY n.time DESC
             """, (driver_id,))
             return cur.fetchall()
 
-def add_notification(message, importance, driver_id):
+
+def add_notification(template_code, importance_level, driver_id):
     try:
         with get_connection() as conn:
             with conn.cursor() as cur:
+                cur.execute("SELECT id FROM message_templates WHERE code = %s", (template_code,))
+                template_row = cur.fetchone()
+                if not template_row:
+                    raise ValueError("Неизвестный шаблон сообщения")
+
+                template_id = template_row[0]
+
+                cur.execute("SELECT id FROM importance_levels WHERE level = %s", (importance_level,))
+                importance_row = cur.fetchone()
+                if not importance_row:
+                    raise ValueError("Неизвестный уровень важности")
+
+                importance_id = importance_row[0]
+
                 cur.execute("""
-                    INSERT INTO notifications (message, importance, id_driver)
+                    INSERT INTO notifications (id_driver, template_id, importance_id)
                     VALUES (%s, %s, %s)
-                """, (message, importance, driver_id))
+                """, (driver_id, template_id, importance_id))
                 conn.commit()
                 return True
     except Exception as e:
         print(f"Database error: {e}")
         return False
+
 
 def mark_notifications_as_read(driver_id):
     with get_connection() as conn:
@@ -263,7 +290,7 @@ def mark_notifications_as_read(driver_id):
             """, (driver_id,))
             conn.commit()
 
-# Очистка всех уведомлений
+
 def clear_all_notifications():
     with get_connection() as conn:
         with conn.cursor() as cur:

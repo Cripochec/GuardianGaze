@@ -95,6 +95,19 @@ body.login-page {
     background-color: #007bff;
 }
 
+/* ========== user_agreement_page PAGE ========== */
+user_agreement_page {
+    overflow: hidden;
+    background-image: url('/static/images/photo2.jpg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    transition: background-image 1s ease-in-out;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
 /* ========== HOME PAGE ========== */
 body.home-page {
     margin: 0;

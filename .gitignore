@@ -14,4 +14,5 @@ venv/
 # Ваши специфичные правила
 /server/settings.py
 /server/ML/fatigue-detection-yawdd/data/fatigue_dataset
+/server/dlib
 /document/

@@ -9,6 +9,9 @@ import os
 from collections import deque
 from db import add_notification
 import torch.nn as nn
+import torch.nn.functional as F
+import imageio
+
 
 # === Модель ===
 class CNNLSTM(nn.Module):
@@ -41,6 +44,7 @@ DATA_FILE = "static/json_data_message.json"
 MAX_SEQ_LEN = 35
 MIN_FRAME_INTERVAL = 1.0 / 15
 ALERT_COOLDOWN_SECONDS = 10
+CONFIDENCE_THRESHOLD = 0.8  # минимальная уверенность
 
 # === Dlib ===
 predictor_path = "ML/fatigue-detection-yawdd/src/shape_predictor_68_face_landmarks.dat"
@@ -77,6 +81,18 @@ def add_message(id: int, message: str, importance: str = "средняя") -> No
     save_data(data)
 
 # === Обработка кадра ===
+def is_confident_prediction(output, threshold=CONFIDENCE_THRESHOLD):
+    probs = F.softmax(output, dim=1)
+    max_confidence, predicted = torch.max(probs, dim=1)
+    return predicted.item(), max_confidence.item() >= threshold
+
+def save_fatigue_frame(frame, user_id, label):
+    os.makedirs("confirmed_fatigue_frames", exist_ok=True)
+    fname = f"user{user_id}_{label}_{int(time.time())}.png"
+    path = os.path.join("confirmed_fatigue_frames", fname)
+    imageio.imwrite(path, cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+    print(f"[{user_id}] 💾 Сохранён кадр усталости: {path}")
+
 def process_frame_for_fatigue(frame, user_id, thresholds, model, label_encoder):
     now = time.time()
 
@@ -92,7 +108,8 @@ def process_frame_for_fatigue(frame, user_id, thresholds, model, label_encoder):
             "frequent_blinking": []
         },
         "gaze_deviation_start": None,
-        "gaze_deviation_alerted": False
+        "gaze_deviation_alerted": False,
+        "last_label": None
     })
 
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -113,44 +130,55 @@ def process_frame_for_fatigue(frame, user_id, thresholds, model, label_encoder):
 
         arr = arr.reshape(MAX_SEQ_LEN, -1)
         arr = (arr - np.mean(arr)) / (np.std(arr) + 1e-5)
-        arr = arr.reshape(1, MAX_SEQ_LEN, 136)
-
-        tensor = torch.tensor(arr, dtype=torch.float32).to(next(model.parameters()).device)
+        tensor = torch.tensor(arr, dtype=torch.float32).unsqueeze(0).to(next(model.parameters()).device)
 
         model.eval()
         with torch.no_grad():
-            pred = model(tensor)
-            predicted_idx = pred.argmax(dim=1).item()
+            output = model(tensor)
+            predicted_idx, confident = is_confident_prediction(output)
+
+            if not confident:
+                print(f"[{user_id}] ⚠️ Низкая уверенность, предсказание игнорировано")
+                return
+
             predicted_label = label_encoder.inverse_transform([predicted_idx])[0]
 
-            if predicted_label == "heavy_eyelids" or predicted_label == "long_blinking":
-                return  # Игнорируем
+            if predicted_label in ["heavy_eyelids", "long_blinking"]:
+                return
 
-            print(f"[{user_id}] Предсказано: {predicted_label}")
+            print(f"[{user_id}] ✅ Предсказано: {predicted_label} (уверенно)")
 
+            # Сохраняем кадр, если уверенный microsleep
+            if predicted_label == "microsleep":
+                save_fatigue_frame(frame, user_id, predicted_label)
+
+            # Подсчёт уникальных событий
             if predicted_label in ["yawning", "microsleep", "frequent_blinking"]:
-                state["event_times"].setdefault(predicted_label, []).append(now)
-                state["event_times"][predicted_label] = [
-                    t for t in state["event_times"][predicted_label] if now - t <= 30
-                ]
-                if len(state["event_times"][predicted_label]) >= 2:
-                    cooldown_key = (user_id, predicted_label)
-                    if cooldown_key not in last_alert_time or now - last_alert_time[cooldown_key] > ALERT_COOLDOWN_SECONDS:
-                        importance_map = {
-                            "yawning": "высокая",
-                            "microsleep": "высокая",
-                            "frequent_blinking": "средняя"
-                        }
-                        message_map = {
-                            "yawning": "Обнаружено частое зевание",
-                            "microsleep": "Обнаружены микро-сны",
-                            "frequent_blinking": "Обнаружено частое моргание"
-                        }
-                        message = message_map[predicted_label]
-                        importance = importance_map[predicted_label]
-                        add_message(user_id, message, importance)
-                        add_notification(message, importance, user_id)
-                        last_alert_time[cooldown_key] = now
+                if state["last_label"] != predicted_label:
+                    state["event_times"].setdefault(predicted_label, []).append(now)
+                    state["event_times"][predicted_label] = [
+                        t for t in state["event_times"][predicted_label] if now - t <= 30
+                    ]
+                    if len(state["event_times"][predicted_label]) >= 2:
+                        cooldown_key = (user_id, predicted_label)
+                        if cooldown_key not in last_alert_time or now - last_alert_time[cooldown_key] > ALERT_COOLDOWN_SECONDS:
+                            importance_map = {
+                                "yawning": "высокая",
+                                "microsleep": "высокая",
+                                "frequent_blinking": "средняя"
+                            }
+                            message_map = {
+                                "yawning": "Обнаружено частое зевание",
+                                "microsleep": "Обнаружены микро-сны",
+                                "frequent_blinking": "Обнаружено частое моргание"
+                            }
+                            message = message_map[predicted_label]
+                            importance = importance_map[predicted_label]
+                            add_message(user_id, message, importance)
+                            add_notification(message, importance, user_id)
+                            last_alert_time[cooldown_key] = now
+
+                state["last_label"] = predicted_label
 
             elif predicted_label == "gaze_deviation":
                 if state["gaze_deviation_start"] is None:
@@ -160,6 +188,9 @@ def process_frame_for_fatigue(frame, user_id, thresholds, model, label_encoder):
                     add_message(user_id, message, "низкая")
                     add_notification(message, "низкая", user_id)
                     state["gaze_deviation_alerted"] = True
+                state["last_label"] = predicted_label
             else:
                 state["gaze_deviation_start"] = None
                 state["gaze_deviation_alerted"] = False
+                state["last_label"] = "normal"
+

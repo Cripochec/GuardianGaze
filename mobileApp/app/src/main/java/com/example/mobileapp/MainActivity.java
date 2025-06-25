@@ -9,7 +9,6 @@ import com.example.mobileapp.utils.NotificationActionReceiver;
 import com.example.mobileapp.utils.NotificationUtils;
 import com.example.mobileapp.utils.OverlayView;
 
-
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.ValueAnimator;
@@ -66,7 +65,6 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 
-
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MainActivity";
 
@@ -102,10 +100,9 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void run() {
             checkServerNotifications();
-            notificationHandler.postDelayed(this, 10000); // каждые 10 секунд
+            notificationHandler.postDelayed(this, 10000); // Проверка уведомлений каждые 10 секунд
         }
     };
-
 
     private final ActivityResultLauncher<String> requestNotificationPermissionLauncher =
             registerForActivityResult(new ActivityResultContracts.RequestPermission(), isGranted -> {
@@ -113,7 +110,6 @@ public class MainActivity extends AppCompatActivity {
                     showToast("Разрешите показ уведомлений");
                 }
             });
-
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -124,7 +120,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         super.onCreate(savedInstanceState);
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON); // экран не тухнет а затемняеться
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         setContentView(R.layout.activity_main);
 
         lottieAnimation = findViewById(R.id.lottieAnimation);
@@ -147,7 +143,6 @@ public class MainActivity extends AppCompatActivity {
 
         toggleCardButton.setOnClickListener(v -> toggleCardView());
 
-
         String serverWsUrl = "ws://" + DataUtils.IP + "/ws";
         videoStream = new VideoStreamUtils(this, serverWsUrl, new VideoStreamUtils.Listener() {
             @Override
@@ -161,8 +156,6 @@ public class MainActivity extends AppCompatActivity {
                 showToast("WebSocket ошибка: " + t.getMessage());
             }
         });
-
-//        fatigueProcessor = new FaceDetectionProcessor(this);
 
         Intent intent = getIntent();
         if (intent != null && "ACTION_TOGGLE_TRACKING".equals(intent.getAction())) {
@@ -193,15 +186,10 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        // Отключаем видеостриминг
         videoStream.disconnect();
-        // Очищаем уведомления
         NotificationUtils.cancelNotification(this);
-        // Останавливаем локальную детекцию, если она была запущена
         stopLocalDetection();
-        // Останавливаем обработчик уведомлений
         notificationHandler.removeCallbacks(notificationRunnable);
-        // Отписываемся от слушателя сети
         if (networkStateReceiver != null) {
             unregisterReceiver(networkStateReceiver);
             networkStateReceiver = null;
@@ -224,11 +212,10 @@ public class MainActivity extends AppCompatActivity {
                 updateTrackingState();
                 break;
             case NotificationActionReceiver.ACTION_CLOSE_NOTIFICATION:
-                finishAffinity(); // Закрывает всё
+                finishAffinity();
                 break;
         }
     }
-
 
     RequestUtils.Callback callbackSendNotification = (fragment, result) -> {
         try {
@@ -240,7 +227,6 @@ public class MainActivity extends AppCompatActivity {
             else if (status == 2){
                 showToast("Ошибка на стороне сервера ERROR: "+status);
             }
-
         } catch (Exception e) {
             Log.e(TAG, "Ошибка callback. callbackSendNotification. "+ e);
         }
@@ -256,7 +242,6 @@ public class MainActivity extends AppCompatActivity {
             else if (status == 2){
                 showToast("Ошибка на стороне сервера ERROR: "+status);
             }
-
         } catch (Exception e) {
             Log.e(TAG, "Ошибка callback. callbackSendNotificationList. "+ e);
         }
@@ -270,7 +255,6 @@ public class MainActivity extends AppCompatActivity {
                 JSONArray notifications = jsonObject.getJSONArray("notifications");
                 for (int i = 0; i < notifications.length(); i++) {
                     JSONObject notif = notifications.getJSONObject(i);
-                    // Получаем текст сообщения
                     String message = notif.optString("message", "");
                     runOnUiThread(() -> addNotification(message));
                 }
@@ -298,7 +282,6 @@ public class MainActivity extends AppCompatActivity {
             unregisterReceiver(networkStateReceiver);
             networkStateReceiver = null;
         }
-
         notificationHandler.removeCallbacks(notificationRunnable);
     }
 
@@ -306,7 +289,7 @@ public class MainActivity extends AppCompatActivity {
     private void addNotification(String message) {
         notificationCount++;
 
-        // Вибрация (если включена в настройках)
+        // Вибрация, если включена в настройках
         if (DataUtils.isVibrationEnabled(this)) {
             Vibrator vibrator = (Vibrator) getSystemService(VIBRATOR_SERVICE);
             if (vibrator != null && vibrator.hasVibrator()) {
@@ -325,7 +308,7 @@ public class MainActivity extends AppCompatActivity {
                     .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                     .build());
 
-            int volumeLevel = DataUtils.getVolumeLevel(this); // от 0 до 10
+            int volumeLevel = DataUtils.getVolumeLevel(this);
             float volume = volumeLevel / 10f;
             mediaPlayer.setVolume(volume, volume);
 
@@ -340,7 +323,7 @@ public class MainActivity extends AppCompatActivity {
             Log.e("Notification", "Ошибка воспроизведения звука", e);
         }
 
-        // Добавление в интерфейс
+        // Добавление уведомления в интерфейс
         TextView notificationView = new TextView(this);
         notificationView.setText(notificationCount + ". " + message);
         notificationView.setPadding(20, 20, 20, 20);
@@ -365,11 +348,11 @@ public class MainActivity extends AppCompatActivity {
             } catch (Exception e) {
                 Log.e(TAG, "Ошибка ReqestUtils. send_notification. "+e);}
         } else if (!message.equals("Система готова к отслеживанию")) {
-            // Если нет соединения — накапливаем уведомления
             pendingNotifications.add(message);
         }
     }
 
+    // Открытие/закрытие превью камеры
     private void toggleCardView() {
         if (cardAnimator.isRunning()) return;
 
@@ -407,7 +390,6 @@ public class MainActivity extends AppCompatActivity {
                     @Override
                     public void onAnimationEnd(Animator animation) {
                         findViewById(R.id.cameraPreviewFrameLayout).setVisibility(View.GONE);
-                        // Остановить превью
                         if (cameraHelper != null) {
                             cameraHelper.stopCamera();
                         }
@@ -424,7 +406,6 @@ public class MainActivity extends AppCompatActivity {
                 @Override
                 public void onAnimationEnd(Animator animation) {
                     findViewById(R.id.cameraPreviewFrameLayout).setVisibility(View.GONE);
-                    // Остановить превью
                     if (cameraHelper != null) {
                         cameraHelper.stopCamera();
                     }
@@ -436,6 +417,7 @@ public class MainActivity extends AppCompatActivity {
         cardAnimator.start();
     }
 
+    // Обновление состояния отслеживания
     private void updateTrackingState() {
         try {
             // Если открыто превью — закрываем его перед запуском отслеживания
@@ -475,8 +457,8 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    // Запуск стриминга видео на сервер
     private void startVideoStreaming() {
-        // Остановить превью, если оно активно
         if (isPreviewActive && cameraHelper != null) {
             cameraHelper.stopCamera();
             isPreviewActive = false;
@@ -489,8 +471,8 @@ public class MainActivity extends AppCompatActivity {
         videoStream.disconnect();
     }
 
+    // Запуск локальной детекции усталости
     private void startLocalDetection() {
-        // Остановить превью, если оно активно
         if (isPreviewActive && cameraHelper != null) {
             cameraHelper.stopCamera();
             isPreviewActive = false;
@@ -512,6 +494,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    // Настройка камеры для стриминга
     private void setupCameraForStreaming() {
         cameraProviderFuture = ProcessCameraProvider.getInstance(this);
         cameraExecutor = ContextCompat.getMainExecutor(this);
@@ -542,6 +525,7 @@ public class MainActivity extends AppCompatActivity {
         }, cameraExecutor);
     }
 
+    // Настройка камеры для локальной детекции
     private void setupCameraForLocalDetection() {
         cameraProviderFuture = ProcessCameraProvider.getInstance(this);
         cameraExecutor = ContextCompat.getMainExecutor(this);
@@ -578,7 +562,7 @@ public class MainActivity extends AppCompatActivity {
         }, cameraExecutor);
     }
 
-    // Преобразования ImageProxy в JPEG
+    // Преобразование ImageProxy в JPEG
     private byte[] imageProxyToJpeg(ImageProxy image) {
         try {
             ImageProxy.PlaneProxy[] planes = image.getPlanes();
@@ -621,7 +605,6 @@ public class MainActivity extends AppCompatActivity {
         lottieAnimation.cancelAnimation();
         lottieAnimation.setVisibility(View.GONE);
     }
-
 
     // Туториал по использованию приложения
     private void startTutorial() {
@@ -714,17 +697,14 @@ public class MainActivity extends AppCompatActivity {
         settingsButton.callOnClick();
     }
 
-
     // Toast уведомление
     private void showToast(String message) {
         this.runOnUiThread(() -> ToastUtils.showShortToast(this, message));
     }
 
-
-    // Связь с интернетом
+    // Обработка потери сети
     public void onNetworkLost() {
         if (!DataUtils.getDetectionBlinking(this)) {
-            // Был режим стриминга — переключаемся на локальную обработку
             wasStreaming = true;
             stopVideoStreaming();
             startLocalDetection();
@@ -732,21 +712,20 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    // Обработка восстановления сети
     public void onNetworkRestored() {
         if (wasStreaming) {
-            // Вернуть стриминг, отправить накопленные уведомления
             stopLocalDetection();
             startVideoStreaming();
             sendPendingNotifications();
             wasStreaming = false;
             showToast("Интернет пропал, включена локальная обработка!");
-
         } else if (DataUtils.getDetectionBlinking(this)) {
-            // Если был режим локальной обработки — просто отправить накопленные уведомления
             sendPendingNotifications();
         }
     }
 
+    // Отправка накопленных уведомлений на сервер
     private void sendPendingNotifications() {
         if (!pendingNotifications.isEmpty()) {
             try {
@@ -762,6 +741,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    // Проверка новых уведомлений с сервера
     private void checkServerNotifications() {
         int driverId = DataUtils.getUserId(this);
         new RequestUtils(this, "api/get_new_notifications/" + driverId, "GET", "", callbackGetNewNotifications).execute();

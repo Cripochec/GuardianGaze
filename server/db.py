@@ -21,71 +21,107 @@ def get_connection():
 def create_database():
     table_sql = """
 
-        CREATE TYPE user_role AS ENUM ('admin', 'driver');
-        CREATE TYPE importance_level AS ENUM ('высокая', 'средняя', 'низкая');
+-- =============================================
+-- Создание пользовательских типов ENUM
+-- =============================================
+CREATE TYPE user_role AS ENUM ('admin', 'driver');
+CREATE TYPE importance_level AS ENUM ('высокая', 'средняя', 'низкая');
+CREATE TYPE message_code AS ENUM (
+    'yawning',
+    'normal',
+    'frequent_blinking',
+    'gaze_deviation',
+    'microsleep'
+);
 
-        CREATE TABLE IF NOT EXISTS users (
-            id SERIAL PRIMARY KEY,
-            login VARCHAR(100) UNIQUE NOT NULL,
-            password VARCHAR(100) NOT NULL,
-            role user_role NOT NULL
-        );
-        
-        -- Индексы для таблицы users
-        CREATE INDEX idx_users_role ON users(role);
-        CREATE INDEX idx_users_login ON users(login); -- Для быстрого поиска по логину
+-- =============================================
+-- Таблица пользователей
+-- =============================================
+CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    login VARCHAR(100) UNIQUE NOT NULL,
+    password VARCHAR(100) NOT NULL,
+    role user_role NOT NULL
+);
 
-        CREATE TABLE IF NOT EXISTS drivers (
-            id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-            first_name VARCHAR(100),
-            last_name VARCHAR(100),
-            phone VARCHAR(20),
-            email VARCHAR(100),
-            age INTEGER,
-            truck VARCHAR(100),
-            assigned_admin_id INTEGER REFERENCES users(id) ON DELETE SET NULL
-        );
-        
-        -- Индексы для таблицы drivers
-        CREATE INDEX idx_drivers_admin ON drivers(assigned_admin_id);
-        CREATE INDEX idx_drivers_name ON drivers(last_name, first_name); -- Для поиска по ФИО
-        CREATE INDEX idx_drivers_phone ON drivers(phone); -- Для быстрого поиска по телефону
-        
-        CREATE TABLE IF NOT EXISTS importance_levels (
-            id SERIAL PRIMARY KEY,
-            level importance_level UNIQUE NOT NULL
-        );
-        
-        CREATE TABLE IF NOT EXISTS message_templates (
-            id SERIAL PRIMARY KEY,
-            code VARCHAR(50) UNIQUE NOT NULL,
-            message TEXT NOT NULL
-        );
-        
-        -- Индекс для быстрого поиска шаблонов по коду
-        CREATE INDEX idx_templates_code ON message_templates(code);
+-- Индексы для пользователей
+CREATE INDEX idx_users_role ON users(role);
+CREATE INDEX idx_users_login ON users(login);
 
-        CREATE TABLE IF NOT EXISTS notifications (
-            id SERIAL PRIMARY KEY,
-            id_driver INTEGER REFERENCES drivers(id) ON DELETE CASCADE,
-            template_id INTEGER REFERENCES message_templates(id),
-            time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            importance_id INTEGER REFERENCES importance_levels(id),
-            is_read BOOLEAN DEFAULT FALSE
-        );
-        
-        -- Индексы для таблицы notifications
-        CREATE INDEX idx_notifications_driver ON notifications(id_driver);
-        CREATE INDEX idx_notifications_importance ON notifications(importance_id);
-        CREATE INDEX idx_notifications_time ON notifications(time DESC); -- Для сортировки по новизне
-        CREATE INDEX idx_notifications_read_status ON notifications(is_read) WHERE is_read = FALSE; -- Частичный индекс для непрочитанных
+-- =============================================
+-- Таблица водителей
+-- =============================================
+CREATE TABLE IF NOT EXISTS drivers (
+    id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    first_name VARCHAR(100),
+    last_name VARCHAR(100),
+    phone VARCHAR(20),
+    email VARCHAR(100),
+    age INTEGER CHECK (age >= 18 AND age <= 70),
+    truck VARCHAR(100),
+    assigned_admin_id INTEGER REFERENCES users(id) ON DELETE SET NULL
+);
 
-        -- Дополнительная оптимизация для частых запросов
-        -- Для поиска уведомлений по водителю и важности
-        CREATE INDEX idx_notifications_driver_importance ON notifications(id_driver, importance_id);
-        
-        -- Для выборки уведомлений по шаблону
-        CREATE INDEX idx_notifications_template ON notifications(template_id);
+-- Индексы для водителей
+CREATE INDEX idx_drivers_admin ON drivers(assigned_admin_id);
+CREATE INDEX idx_drivers_name ON drivers(last_name, first_name);
+CREATE INDEX idx_drivers_contact ON drivers(phone, email);
+
+-- =============================================
+-- Таблица уровней важности
+-- =============================================
+CREATE TABLE IF NOT EXISTS importance_levels (
+    id SERIAL PRIMARY KEY,
+    level importance_level UNIQUE NOT NULL
+);
+
+-- =============================================
+-- Таблица шаблонов сообщений (теперь с ENUM)
+-- =============================================
+CREATE TABLE IF NOT EXISTS message_templates (
+    id SERIAL PRIMARY KEY,
+    code message_code UNIQUE NOT NULL,  -- Используем ENUM тип
+    message TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Триггер для автоматического обновления updated_at
+CREATE OR REPLACE FUNCTION update_message_templates_timestamp()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_message_templates_update
+BEFORE UPDATE ON message_templates
+FOR EACH ROW
+EXECUTE FUNCTION update_message_templates_timestamp();
+
+-- =============================================
+-- Таблица уведомлений
+-- =============================================
+CREATE TABLE IF NOT EXISTS notifications (
+    id SERIAL PRIMARY KEY,
+    id_driver INTEGER REFERENCES drivers(id) ON DELETE CASCADE,
+    template_id INTEGER REFERENCES message_templates(id),
+    time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    importance_id INTEGER REFERENCES importance_levels(id),
+    is_read BOOLEAN DEFAULT FALSE,
+    CONSTRAINT chk_notification_time CHECK (time <= CURRENT_TIMESTAMP)
+);
+
+-- Индексы для уведомлений
+CREATE INDEX idx_notifications_driver ON notifications(id_driver);
+CREATE INDEX idx_notifications_template ON notifications(template_id);
+CREATE INDEX idx_notifications_importance ON notifications(importance_id);
+CREATE INDEX idx_notifications_time_read ON notifications(time DESC, is_read);
+
+-- Оптимизированный индекс для частых запросов
+CREATE INDEX idx_notifications_unread_high_priority ON notifications(id_driver, importance_id)
+WHERE is_read = FALSE AND importance_id = (SELECT id FROM importance_levels WHERE level = 'высокая');
             """
 
     with get_connection() as conn:
